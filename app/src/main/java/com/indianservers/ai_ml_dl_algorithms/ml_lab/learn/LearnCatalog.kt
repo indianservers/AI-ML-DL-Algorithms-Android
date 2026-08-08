@@ -109,6 +109,21 @@ object LearnCatalog {
 
     val topics: List<LearnTopic> = domains.flatMap { it.sections }.flatMap { it.topics }
 
+    val flagshipTopics: List<LearnTopic> = listOfNotNull(
+        topics.firstOrNull { it.title == "Simple Linear Regression" },
+        topics.firstOrNull { it.title == "Logistic Regression" && it.section == "Classification" },
+        topics.firstOrNull { it.title == "K-Nearest Neighbors" && it.section == "Classification" },
+        topics.firstOrNull { it.title == "Decision Tree" && it.section == "Classification" },
+        topics.firstOrNull { it.title == "Random Forest" && it.section == "Classification" },
+        topics.firstOrNull { it.title == "Support Vector Machine" },
+        topics.firstOrNull { it.title == "K-Means" },
+        topics.firstOrNull { it.title == "Multi-Layer Perceptron" },
+        topics.firstOrNull { it.title == "CNN" },
+        topics.firstOrNull { it.title == "LSTM" }
+    )
+
+    fun isFlagship(topic: LearnTopic): Boolean = flagshipTopics.any { it.id == topic.id }
+
     fun profile(topic: LearnTopic, depth: LearningDepth): LearningProfile {
         val name = topic.title
         val lower = name.lowercase()

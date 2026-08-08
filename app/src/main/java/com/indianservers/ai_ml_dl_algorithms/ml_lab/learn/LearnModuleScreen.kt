@@ -60,6 +60,24 @@ import com.indianservers.ai_ml_dl_algorithms.ml_lab.components.MetricPill
 import com.indianservers.ai_ml_dl_algorithms.ml_lab.components.SectionTitle
 import com.indianservers.ai_ml_dl_algorithms.ml_lab.components.SegmentedOption
 import com.indianservers.ai_ml_dl_algorithms.ml_lab.domain.LearningDepth
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseOneAlgorithmLab
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseOneTopicMatcher
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseFourAlgorithmLab
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseFourTopicMatcher
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseFiveDeepLearningLab
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseFiveTopicMatcher
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseSixCnnLab
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseSixTopicMatcher
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseSevenSequenceLab
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseSevenTopicMatcher
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseEightTransformerLab
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseEightTopicMatcher
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseNineGenerativeLab
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseNineTopicMatcher
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseThreeAlgorithmLab
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseThreeTopicMatcher
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseTwoAlgorithmLab
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseTwoTopicMatcher
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sin
@@ -110,7 +128,7 @@ private fun LearnCatalogScreen(completed: Set<String>, onOpen: (LearnTopic) -> U
     ) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                SectionTitle("Learn", "Interactive AI/ML textbook and laboratory")
+                SectionTitle("Learn", "Top 10 flagship labs plus the full algorithm library")
                 Text("${completed.size}/${LearnCatalog.topics.size}", color = LabGreen, fontWeight = FontWeight.Bold)
             }
         }
@@ -129,6 +147,7 @@ private fun LearnCatalogScreen(completed: Set<String>, onOpen: (LearnTopic) -> U
             items(matching, key = { it.id }) { topic -> TopicRow(topic, topic.id in completed) { onOpen(topic) } }
             if (matching.isEmpty()) item { EmptySearch() }
         } else {
+            item { TopTenFlagshipPanel(completed, onOpen) }
             items(LearnCatalog.domains, key = { it.title }) { domain ->
                 DomainAccordion(
                     domain = domain,
@@ -143,6 +162,31 @@ private fun LearnCatalogScreen(completed: Set<String>, onOpen: (LearnTopic) -> U
                     },
                     onOpen = onOpen
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TopTenFlagshipPanel(completed: Set<String>, onOpen: (LearnTopic) -> Unit) {
+    GlassPanel(Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            SectionTitle("Top 10 Flagship Labs", "Premium touch-first lessons for the algorithms students need most")
+            LearnCatalog.flagshipTopics.forEachIndexed { index, topic ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { onOpen(topic) }.background(Color(topic.accent).copy(alpha = .08f), RoundedCornerShape(7.dp)).padding(9.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(Modifier.size(30.dp).background(Color(topic.accent).copy(alpha = .18f), RoundedCornerShape(7.dp)), contentAlignment = Alignment.Center) {
+                        Text("${index + 1}", color = Color(topic.accent), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(flagshipTitle(topic), color = LabText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(flagshipPromise(topic), color = LabMuted, fontSize = 11.sp, maxLines = 2)
+                    }
+                    Text(if (topic.id in completed) "Done" else "Open", color = if (topic.id in completed) LabGreen else LabCyan, fontSize = 11.sp)
+                }
             }
         }
     }
@@ -236,6 +280,27 @@ private fun EmptySearch() {
     }
 }
 
+private fun flagshipTitle(topic: LearnTopic): String = when (topic.title) {
+    "Simple Linear Regression" -> "Linear Regression"
+    "Multi-Layer Perceptron" -> "ANN / MLP"
+    "LSTM" -> "RNN / LSTM"
+    else -> topic.title
+}
+
+private fun flagshipPromise(topic: LearnTopic): String = when (topic.title) {
+    "Simple Linear Regression" -> "Drag points, fit y = wx + b, inspect residuals, MSE, R2, and gradient descent."
+    "Logistic Regression" -> "Move the threshold and inspect sigmoid probability, confusion matrix, precision, recall, and F1."
+    "K-Nearest Neighbors" -> "Place a query, change K, switch distance metrics, and watch the nearest-neighbor vote."
+    "Decision Tree" -> "Explore impurity, candidate splits, tree path, and underfit/overfit behavior."
+    "Random Forest" -> "Inspect bootstraps, individual tree votes, ensemble stability, and noisy-data behavior."
+    "Support Vector Machine" -> "See margins, support vectors, C, violations, and linear-vs-RBF behavior."
+    "K-Means" -> "Animate assign/move steps, drag centroids, compare K-Means++, and inspect inertia."
+    "Multi-Layer Perceptron" -> "Tap neurons and weights, inspect forward/backprop numbers, and train XOR."
+    "CNN" -> "Move kernels over 8x8 images, inspect feature maps, pooling, and tiny shape classification."
+    "LSTM" -> "Step through sequence memory, gradient flow, gates, and RNN vs LSTM delayed prediction."
+    else -> "Open the flagship interactive lab."
+}
+
 @Composable
 private fun AlgorithmLearningScreen(
     topic: LearnTopic,
@@ -244,6 +309,105 @@ private fun AlgorithmLearningScreen(
     onBack: () -> Unit,
     onComplete: () -> Unit
 ) {
+    PhaseNineTopicMatcher.kindFor(topic.title, topic.domain)?.let { concept ->
+        PhaseNineGenerativeLab(
+            topic = topic,
+            concept = concept,
+            depth = depth,
+            completed = completed,
+            onBack = onBack,
+            onComplete = onComplete
+        )
+        return
+    }
+    PhaseEightTopicMatcher.kindFor(topic.title, topic.domain)?.let { concept ->
+        PhaseEightTransformerLab(
+            topic = topic,
+            concept = concept,
+            depth = depth,
+            completed = completed,
+            onBack = onBack,
+            onComplete = onComplete
+        )
+        return
+    }
+    PhaseSevenTopicMatcher.kindFor(topic.title, topic.domain)?.let { concept ->
+        PhaseSevenSequenceLab(
+            topic = topic,
+            concept = concept,
+            depth = depth,
+            completed = completed,
+            onBack = onBack,
+            onComplete = onComplete
+        )
+        return
+    }
+    PhaseSixTopicMatcher.kindFor(topic.title, topic.domain)?.let { concept ->
+        PhaseSixCnnLab(
+            topic = topic,
+            concept = concept,
+            depth = depth,
+            completed = completed,
+            onBack = onBack,
+            onComplete = onComplete
+        )
+        return
+    }
+    PhaseFiveTopicMatcher.kindFor(topic.title, topic.domain)?.let { concept ->
+        PhaseFiveDeepLearningLab(
+            topic = topic,
+            concept = concept,
+            depth = depth,
+            completed = completed,
+            onBack = onBack,
+            onComplete = onComplete
+        )
+        return
+    }
+    PhaseFourTopicMatcher.kindFor(topic.title)?.let { kind ->
+        PhaseFourAlgorithmLab(
+            topic = topic,
+            kind = kind,
+            depth = depth,
+            completed = completed,
+            onBack = onBack,
+            onComplete = onComplete
+        )
+        return
+    }
+    PhaseThreeTopicMatcher.kindFor(topic.title, topic.section, topic.domain)?.let { kind ->
+        PhaseThreeAlgorithmLab(
+            topic = topic,
+            kind = kind,
+            depth = depth,
+            completed = completed,
+            onBack = onBack,
+            onComplete = onComplete
+        )
+        return
+    }
+    PhaseTwoTopicMatcher.kindFor(topic.title, topic.section, topic.domain)?.let { kind ->
+        PhaseTwoAlgorithmLab(
+            topic = topic,
+            kind = kind,
+            depth = depth,
+            completed = completed,
+            onBack = onBack,
+            onComplete = onComplete
+        )
+        return
+    }
+    PhaseOneTopicMatcher.kindFor(topic.title, topic.section)?.let { kind ->
+        PhaseOneAlgorithmLab(
+            topic = topic,
+            kind = kind,
+            depth = depth,
+            completed = completed,
+            onBack = onBack,
+            onComplete = onComplete
+        )
+        return
+    }
     val profile = remember(topic, depth) { LearnCatalog.profile(topic, depth) }
     var stage by remember(topic) { mutableStateOf(LearningStage.Understand) }
 
