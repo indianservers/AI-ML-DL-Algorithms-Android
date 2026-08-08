@@ -66,6 +66,9 @@ import com.indianservers.ai_ml_dl_algorithms.ml_lab.domain.AlgorithmStatus
 import com.indianservers.ai_ml_dl_algorithms.ml_lab.domain.LearningDepth
 import com.indianservers.ai_ml_dl_algorithms.ml_lab.domain.Point2D
 import com.indianservers.ai_ml_dl_algorithms.ml_lab.deep_learning.presentation.DeepLearningScreen
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.phase5.presentation.AiEngineeringStudio
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.LearnCatalog
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.LearnModuleScreen
 import kotlinx.coroutines.delay
 
 private enum class LabTab(val label: String) {
@@ -74,7 +77,7 @@ private enum class LabTab(val label: String) {
     Deep("Deep"),
     Train("Train"),
     Data("Data"),
-    Infer("Infer"),
+    Infer("Studio"),
     Saved("Saved")
 }
 
@@ -101,13 +104,11 @@ fun MlLabApp() {
                 Box(Modifier.weight(1f)) {
                     when (selectedTab) {
                         LabTab.Home -> HomeScreen(depth, onDepthChanged = { depth = it }, onOpen = { tab -> selectedTab = tab })
-                        LabTab.Learn -> CatalogScreen(selectedAlgorithm, depth, onSelected = {
-                            selectedAlgorithm = it
-                        })
+                        LabTab.Learn -> LearnModuleScreen(depth)
                         LabTab.Deep -> DeepLearningScreen()
                         LabTab.Train -> TrainingPlayground(selectedAlgorithm)
                         LabTab.Data -> DatasetLab()
-                        LabTab.Infer -> InferenceLab()
+                        LabTab.Infer -> AiEngineeringStudio()
                         LabTab.Saved -> SavedScreen(selectedAlgorithm)
                     }
                 }
@@ -148,9 +149,9 @@ private fun HomeScreen(depth: LearningDepth, onDepthChanged: (LearningDepth) -> 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
                     Text("ML & Deep Learning", color = LabText, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    Text("Learn - Train - Visualize - Infer", color = LabMuted)
+                    Text("Learn - Train - Inspect - Deploy", color = LabMuted)
                 }
-                Text("Phase 4", color = LabPink, fontWeight = FontWeight.Bold)
+                Text("Phase 5", color = LabGreen, fontWeight = FontWeight.Bold)
             }
         }
         item { HeroPipeline(Modifier.fillMaxWidth()) }
@@ -175,7 +176,7 @@ private fun HomeScreen(depth: LearningDepth, onDepthChanged: (LearningDepth) -> 
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     QuickCard("Dataset Lab", "Edit 2D data", LabGreen, Modifier.weight(1f)) { onOpen(LabTab.Data) }
-                    QuickCard("Model Inference", "Predict offline", LabOrange, Modifier.weight(1f)) { onOpen(LabTab.Infer) }
+                    QuickCard("AI Engineering Studio", "Real on-device models", LabOrange, Modifier.weight(1f)) { onOpen(LabTab.Infer) }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     QuickCard("Compare Models", "Metrics ready", LabBlue, Modifier.weight(1f)) { onOpen(LabTab.Train) }
@@ -186,8 +187,8 @@ private fun HomeScreen(depth: LearningDepth, onDepthChanged: (LearningDepth) -> 
         item {
             GlassPanel(Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SectionTitle("Phase 4 Modern Architectures", "Attention, graphs and generative learning")
-                    Text("${MlLabContent.algorithms.size} catalog entries plus inspectable Transformers, ViT patch attention, graph message passing, VAE sampling, GAN training and diffusion noising/denoising.", color = LabMuted, fontSize = 13.sp)
+                    SectionTitle("Complete AI Lifecycle", "Learn - build - understand - deploy - optimize")
+                    Text("${LearnCatalog.topics.size} structured lessons, modern architecture labs, real LiteRT/ONNX model import, live media pipelines, tensor inspection, quantization and device benchmarking.", color = LabMuted, fontSize = 13.sp)
                 }
             }
         }
