@@ -46,4 +46,40 @@ class LearnCatalogTest {
         assertEquals(VisualizationKind.Attention, kind("Transformer"))
         assertEquals(VisualizationKind.Reinforcement, kind("Q-Learning"))
     }
+
+    @Test
+    fun topAlgorithmTheoryUsesSpecificEquationsAndKinds() {
+        fun profile(title: String) = LearnCatalog.profile(
+            LearnCatalog.topics.first { it.title == title },
+            LearningDepth.University
+        )
+
+        assertTrue(profile("Simple Linear Regression").equation.contains("wx + b"))
+        assertEquals(VisualizationKind.Classification, profile("Logistic Regression").kind)
+        assertTrue(profile("Polynomial Regression").equation.contains("x^2"))
+        assertTrue(profile("Ridge Regression").equation.contains("sum_j w_j^2"))
+        assertTrue(profile("Lasso Regression").equation.contains("|w_j|"))
+        assertTrue(profile("K-Nearest Neighbors").equation.contains("N_K"))
+        assertTrue(profile("Decision Tree").equation.contains("impurity"))
+        assertTrue(profile("Random Forest").definition.contains("bootstrap"))
+        assertTrue(profile("Extra Trees").definition.contains("random"))
+        assertTrue(profile("Support Vector Machine").equation.contains("C * sum"))
+        assertTrue(profile("Gaussian Naive Bayes").equation.contains("log P"))
+        assertTrue(profile("Linear Discriminant Analysis").equation.contains("Sigma"))
+        assertTrue(profile("Gradient Boosting").equation.contains("F_m"))
+        assertTrue(profile("XGBoost").equation.contains("gain"))
+        assertTrue(profile("LightGBM").definition.contains("histogram"))
+        assertTrue(profile("CatBoost").definition.contains("categorical"))
+        assertTrue(profile("K-Means").equation.contains("mu"))
+        assertTrue(profile("DBSCAN").equation.contains("MinPts"))
+        assertTrue(profile("Gaussian Mixture Models").equation.contains("N(x"))
+        assertTrue(profile("PCA").equation.contains("eigenvectors"))
+        assertTrue(profile("Multi-Layer Perceptron").equation.contains("W_l"))
+        assertTrue(profile("CNN").equation.contains("feature_map"))
+        assertTrue(profile("Recurrent Neural Network").equation.contains("h_t"))
+        assertTrue(profile("LSTM").equation.contains("c_t"))
+        assertTrue(profile("GRU").equation.contains("z_t"))
+        assertTrue(profile("Transformer").equation.contains("softmax"))
+        assertTrue(profile("Self-Attention").equation.contains("softmax"))
+    }
 }
