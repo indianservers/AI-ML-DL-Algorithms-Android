@@ -42,6 +42,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -110,15 +112,15 @@ private enum class DatasetPresetUi(val label: String) {
 }
 
 private enum class AlgorithmLearningMode(val label: String) {
-    Lesson("Lesson"), Lab("Lab")
+    Learn("Learn"), Visualization("Visualization"), Train("Train & Inference"), Quiz("Quiz")
 }
 
 @Composable
-fun LearnModuleScreen(depth: LearningDepth) {
+fun LearnModuleScreen(depth: LearningDepth, initialTopic: LearnTopic? = null, onBackHome: () -> Unit = {}) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("learn_module", Context.MODE_PRIVATE) }
     val lessonRepository = remember(context) { LessonRepository.get(context) }
-    var selected by remember { mutableStateOf<LearnTopic?>(null) }
+    var selected by remember(initialTopic) { mutableStateOf(initialTopic) }
     val completed = remember {
         mutableStateListOf<String>().apply { addAll(prefs.getStringSet("completed", emptySet()).orEmpty()) }
     }
@@ -128,13 +130,13 @@ fun LearnModuleScreen(depth: LearningDepth) {
         }
     }
 
-    BackHandler(enabled = selected != null) { selected = null }
+    BackHandler { if (selected != null && initialTopic == null) selected = null else onBackHome() }
     selected?.let { topic ->
         AlgorithmLearningScreen(
             topic = topic,
             depth = depth,
             completed = topic.id in completed,
-            onBack = { selected = null },
+            onBack = { if (initialTopic == null) selected = null else onBackHome() },
             onComplete = {
                 if (topic.id !in completed) completed.add(topic.id)
                 prefs.edit().putStringSet("completed", completed.toSet()).apply()
@@ -210,11 +212,9 @@ private fun TopTenFlagshipPanel(completed: Set<String>, onOpen: (LearnTopic) -> 
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(Modifier.size(30.dp).background(Color(topic.accent).copy(alpha = .18f), RoundedCornerShape(7.dp)), contentAlignment = Alignment.Center) {
-                        Text("${index + 1}", color = Color(topic.accent), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
+                    AlgorithmIcon(topic, size = 34.dp)
                     Column(Modifier.weight(1f)) {
-                        Text(flagshipTitle(topic), color = LabText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("${index + 1}. ${flagshipTitle(topic)}", color = LabText, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         Text(flagshipPromise(topic), color = LabMuted, fontSize = 11.sp, maxLines = 2)
                     }
                     Text(if (topic.id in completed) "Done" else "Open", color = if (topic.id in completed) LabGreen else LabCyan, fontSize = 11.sp)
@@ -282,7 +282,7 @@ private fun CompactTopicRow(topic: LearnTopic, completed: Boolean, onOpen: () ->
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(7.dp).background(if (completed) LabGreen else Color(topic.accent), RoundedCornerShape(3.dp)))
+        AlgorithmIcon(topic, size = 30.dp)
         Text(topic.title, color = if (completed) LabMuted else LabText, fontSize = 13.sp, modifier = Modifier.weight(1f))
         Text(if (completed) "Done" else ">", color = if (completed) LabGreen else LabMuted, fontSize = 11.sp)
     }
@@ -292,10 +292,7 @@ private fun CompactTopicRow(topic: LearnTopic, completed: Boolean, onOpen: () ->
 private fun TopicRow(topic: LearnTopic, completed: Boolean, onOpen: () -> Unit) {
     GlassPanel(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(40.dp).background(Color(topic.accent).copy(alpha = .16f), RoundedCornerShape(7.dp)),
-                contentAlignment = Alignment.Center
-            ) { Text(topic.title.first().toString(), color = Color(topic.accent), fontWeight = FontWeight.Bold) }
+            AlgorithmIcon(topic)
             Column(Modifier.weight(1f)) {
                 Text(topic.title, color = LabText, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${topic.domain} / ${topic.section}", color = LabMuted, fontSize = 11.sp, maxLines = 1)
@@ -341,24 +338,67 @@ private fun AlgorithmLearningScreen(
     onBack: () -> Unit,
     onComplete: () -> Unit
 ) {
-    var mode by remember(topic) { mutableStateOf(AlgorithmLearningMode.Lesson) }
-
-    when (mode) {
-        AlgorithmLearningMode.Lesson -> HtmlLessonReaderScreen(
+    var mode by remember(topic) { mutableStateOf(AlgorithmLearningMode.Learn) }
+    val workspace = remember(topic.id) { TrainingWorkspaceState(topic) }
+    LaunchedEffect(workspace.points.toList()) { workspace.invalidate() }
+    BackHandler(enabled = mode != AlgorithmLearningMode.Learn) { mode = AlgorithmLearningMode.Learn }
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 11.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SegmentedOption("‹", false, Modifier.size(38.dp), onBack)
+            AlgorithmIcon(topic, size = 42.dp)
+            Column(Modifier.weight(1f)) {
+                Text(topic.title, color = LabText, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2)
+                Text(topic.domain, color = Color(topic.accent), fontSize = 11.sp)
+            }
+        }
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 15.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            AlgorithmLearningMode.entries.forEach { tab ->
+                Box(
+                    Modifier
+                        .shadow(if (mode == tab) 13.dp else 0.dp, RoundedCornerShape(15.dp), ambientColor = LabPurple, spotColor = LabPurple)
+                        .background(
+                            if (mode == tab) Brush.horizontalGradient(listOf(LabBlue, LabPurple))
+                            else Brush.horizontalGradient(listOf(Color(0xFF0D2042), Color(0xFF0A1730))),
+                            RoundedCornerShape(15.dp)
+                        )
+                        .border(1.dp, if (mode == tab) Color(0xFF9BB5FF) else LabBorder, RoundedCornerShape(15.dp))
+                        .clickable { mode = tab }
+                        .padding(horizontal = 17.dp, vertical = 11.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(tab.label, color = if (mode == tab) Color.White else LabMuted, fontWeight = if (mode == tab) FontWeight.Bold else FontWeight.Medium, fontSize = 12.sp)
+                }
+            }
+        }
+        Box(Modifier.weight(1f)) {
+            when (mode) {
+        AlgorithmLearningMode.Learn -> HtmlLessonReaderScreen(
             topic = topic,
             depth = depth,
             completed = completed,
             onBack = onBack,
-            onOpenLab = { mode = AlgorithmLearningMode.Lab },
-            onComplete = onComplete
+            onOpenLab = { mode = AlgorithmLearningMode.Visualization },
+            onComplete = onComplete,
+            embedded = true
         )
-        AlgorithmLearningMode.Lab -> AlgorithmLabScreen(
+        AlgorithmLearningMode.Visualization -> if (searchLabAssetPath(topic.title) != null) {
+            SearchAlgorithmWebLab(topic, { mode = AlgorithmLearningMode.Learn }, showHeader = false)
+        } else AlgorithmLabScreen(
             topic = topic,
             depth = depth,
             completed = completed,
-            onBack = { mode = AlgorithmLearningMode.Lesson },
-            onComplete = onComplete
+            onBack = { mode = AlgorithmLearningMode.Learn },
+            onComplete = onComplete,
+            workspace = workspace
         )
+        AlgorithmLearningMode.Train -> AlgorithmTrainingWorkbench(topic, workspace)
+        AlgorithmLearningMode.Quiz -> AlgorithmQuizScreen(topic)
+            }
+        }
     }
 }
 
@@ -368,7 +408,8 @@ private fun AlgorithmLabScreen(
     depth: LearningDepth,
     completed: Boolean,
     onBack: () -> Unit,
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
+    workspace: TrainingWorkspaceState
 ) {
     PhaseNineTopicMatcher.kindFor(topic.title, topic.domain)?.let { concept ->
         PhaseNineGenerativeLab(
@@ -377,7 +418,8 @@ private fun AlgorithmLabScreen(
             depth = depth,
             completed = completed,
             onBack = onBack,
-            onComplete = onComplete
+            onComplete = onComplete,
+            embedded = true
         )
         return
     }
@@ -388,7 +430,8 @@ private fun AlgorithmLabScreen(
             depth = depth,
             completed = completed,
             onBack = onBack,
-            onComplete = onComplete
+            onComplete = onComplete,
+            embedded = true
         )
         return
     }
@@ -399,7 +442,8 @@ private fun AlgorithmLabScreen(
             depth = depth,
             completed = completed,
             onBack = onBack,
-            onComplete = onComplete
+            onComplete = onComplete,
+            embedded = true
         )
         return
     }
@@ -410,7 +454,8 @@ private fun AlgorithmLabScreen(
             depth = depth,
             completed = completed,
             onBack = onBack,
-            onComplete = onComplete
+            onComplete = onComplete,
+            embedded = true
         )
         return
     }
@@ -421,7 +466,8 @@ private fun AlgorithmLabScreen(
             depth = depth,
             completed = completed,
             onBack = onBack,
-            onComplete = onComplete
+            onComplete = onComplete,
+            embedded = true
         )
         return
     }
@@ -432,7 +478,8 @@ private fun AlgorithmLabScreen(
             depth = depth,
             completed = completed,
             onBack = onBack,
-            onComplete = onComplete
+            onComplete = onComplete,
+            embedded = true
         )
         return
     }
@@ -443,7 +490,8 @@ private fun AlgorithmLabScreen(
             depth = depth,
             completed = completed,
             onBack = onBack,
-            onComplete = onComplete
+            onComplete = onComplete,
+            embedded = true
         )
         return
     }
@@ -454,7 +502,8 @@ private fun AlgorithmLabScreen(
             depth = depth,
             completed = completed,
             onBack = onBack,
-            onComplete = onComplete
+            onComplete = onComplete,
+            embedded = true
         )
         return
     }
@@ -465,25 +514,19 @@ private fun AlgorithmLabScreen(
             depth = depth,
             completed = completed,
             onBack = onBack,
-            onComplete = onComplete
+            onComplete = onComplete,
+            embedded = true,
+            sharedPoints = workspace.points
         )
         return
     }
     val profile = remember(topic, depth) { LearnCatalog.profile(topic, depth) }
-    var stage by remember(topic) { mutableStateOf(LearningStage.Understand) }
+    var stage by remember(topic) { mutableStateOf(LearningStage.Visualize) }
 
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                SegmentedOption("<", false, Modifier.size(42.dp), onBack)
-                Column(Modifier.weight(1f)) {
-                    Text(topic.title, color = LabText, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 2)
-                    Text("${topic.domain} / ${topic.section}", color = Color(topic.accent), fontSize = 11.sp)
-                }
-                Text(if (completed) "Completed" else depth.title, color = if (completed) LabGreen else LabMuted, fontSize = 11.sp)
-            }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                LearningStage.entries.forEach { item ->
+                listOf(LearningStage.Visualize, LearningStage.Explore, LearningStage.Predict, LearningStage.Experiment, LearningStage.Compare).forEach { item ->
                     SegmentedOption(item.label, stage == item) { stage = item }
                 }
             }
@@ -508,7 +551,8 @@ private fun HtmlLessonReaderScreen(
     completed: Boolean,
     onBack: () -> Unit,
     onOpenLab: () -> Unit,
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
+    embedded: Boolean = false
 ) {
     val context = LocalContext.current
     val repository = remember(context) { LessonRepository.get(context) }
@@ -544,7 +588,7 @@ private fun HtmlLessonReaderScreen(
         Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item {
+        if (!embedded) item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 SegmentedOption("<", false, Modifier.size(42.dp), onBack)
                 Column(Modifier.weight(1f)) {
@@ -558,8 +602,10 @@ private fun HtmlLessonReaderScreen(
             GlassPanel(Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        SectionTitle("5-Page Lesson", "Storytelling, realtime examples, applications and expert tips")
-                        Text("${pageIndex + 1}/${activePages.size}", color = LabGreen, fontWeight = FontWeight.Bold)
+                        Box(Modifier.weight(1f)) {
+                            SectionTitle("5-Page Lesson", "Storytelling, realtime examples, applications and expert tips")
+                        }
+                        Text("Page ${pageIndex + 1}/${activePages.size}", color = LabGreen, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         activePages.forEachIndexed { index, lessonPage ->
@@ -578,7 +624,7 @@ private fun HtmlLessonReaderScreen(
                             )
                         }
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!embedded) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SegmentedOption("Lesson", !showQuiz, Modifier.weight(1f)) { showQuiz = false }
                         SegmentedOption("Quiz", showQuiz, Modifier.weight(1f)) { showQuiz = true }
                         SegmentedOption("Open Lab", false, Modifier.weight(1f), onOpenLab)
@@ -652,6 +698,48 @@ private fun HtmlLessonReaderScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AlgorithmQuizScreen(topic: LearnTopic) {
+    val context = LocalContext.current
+    val repository = remember(context) { LessonRepository.get(context) }
+    val scope = rememberCoroutineScope()
+    var questions by remember(topic) {
+        mutableStateOf<List<Pair<McqQuestionRecord, List<McqOptionRecord>>>>(emptyList())
+    }
+    var submittedAttempt by remember(topic) { mutableStateOf<QuizAttemptRecord?>(null) }
+    val selectedOptionIds = remember(topic) { mutableStateMapOf<Long, Long>() }
+    LaunchedEffect(topic) {
+        questions = withContext(Dispatchers.IO) {
+            repository.seedLessonsIfNeeded()
+            repository.questionsFor(topic.id)
+        }
+    }
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp)) {
+        item {
+            LessonQuizScreen(
+                topic = topic,
+                questions = questions,
+                selectedOptionIds = selectedOptionIds,
+                submittedAttempt = submittedAttempt,
+                onSelect = { questionId, optionId ->
+                    if (submittedAttempt == null) selectedOptionIds[questionId] = optionId
+                },
+                onSubmit = {
+                    scope.launch {
+                        submittedAttempt = withContext(Dispatchers.IO) {
+                            repository.recordQuizAttempt(topic.id, selectedOptionIds.toMap())
+                        }
+                    }
+                },
+                onRetry = {
+                    selectedOptionIds.clear()
+                    submittedAttempt = null
+                }
+            )
         }
     }
 }

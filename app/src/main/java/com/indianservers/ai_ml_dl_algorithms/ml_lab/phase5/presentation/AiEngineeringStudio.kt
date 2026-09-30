@@ -153,7 +153,7 @@ fun AiEngineeringStudio() {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column { Text("AI Engineering Studio", color = LabText, fontSize = 26.sp, fontWeight = FontWeight.Bold); Text("Run - inspect - optimize - measure", color = LabMuted) }
-                Text("Phase 5", color = LabGreen, fontWeight = FontWeight.Bold)
+                Text("Studio", color = LabGreen, fontWeight = FontWeight.Bold)
             }
         }
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) { StudioPage.entries.forEach { SegmentedOption(it.label, page == it, Modifier.weight(1f)) { page = it } } } }

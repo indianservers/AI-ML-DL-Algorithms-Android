@@ -1,6 +1,8 @@
 package com.indianservers.ai_ml_dl_algorithms.ml_lab.presentation
 
 import android.content.Context
+import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,7 +24,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Slider
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -69,6 +73,8 @@ import com.indianservers.ai_ml_dl_algorithms.ml_lab.deep_learning.presentation.D
 import com.indianservers.ai_ml_dl_algorithms.ml_lab.phase5.presentation.AiEngineeringStudio
 import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.LearnCatalog
 import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.LearnModuleScreen
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.AlgorithmIcon
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.LearnTopic
 import kotlinx.coroutines.delay
 
 private enum class LabTab(val label: String) {
@@ -78,7 +84,8 @@ private enum class LabTab(val label: String) {
     Train("Train"),
     Data("Data"),
     Infer("Studio"),
-    Saved("Saved")
+    Saved("Saved"),
+    Settings("Settings")
 }
 
 @Composable
@@ -86,12 +93,30 @@ fun MlLabApp() {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("ml_lab_phase_one", Context.MODE_PRIVATE) }
     var selectedTab by remember { mutableStateOf(LabTab.Home) }
+    var selectedTopic by remember { mutableStateOf<LearnTopic?>(null) }
+    var lastTopic by remember {
+        mutableStateOf(LearnCatalog.topics.firstOrNull { it.id == prefs.getString("last_topic", null) })
+    }
+    var showExitDialog by remember { mutableStateOf(false) }
+    val history = remember { mutableStateListOf<LabTab>() }
+    fun navigate(tab: LabTab) {
+        if (tab != selectedTab) history.add(selectedTab)
+        selectedTab = tab
+    }
+    fun back() {
+        if (selectedTab == LabTab.Home) showExitDialog = true
+        else {
+            selectedTab = if (history.isNotEmpty()) history.removeAt(history.lastIndex) else LabTab.Home
+            if (selectedTab == LabTab.Home) selectedTopic = null
+        }
+    }
     var selectedAlgorithm by remember { mutableStateOf(MlLabContent.algorithms.first()) }
     var depth by remember {
         mutableStateOf(LearningDepth.entries.getOrElse(prefs.getInt("learning_depth", 0)) { LearningDepth.Beginner })
     }
     var onboardingDone by remember { mutableStateOf(prefs.getBoolean("onboarding_done", false)) }
     LaunchedEffect(depth) { prefs.edit().putInt("learning_depth", depth.ordinal).apply() }
+    BackHandler(enabled = onboardingDone && selectedTab != LabTab.Learn) { back() }
 
     LabGradientBackground {
         if (!onboardingDone) {
@@ -103,18 +128,47 @@ fun MlLabApp() {
             Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 Box(Modifier.weight(1f)) {
                     when (selectedTab) {
-                        LabTab.Home -> HomeScreen(depth, onDepthChanged = { depth = it }, onOpen = { tab -> selectedTab = tab })
-                        LabTab.Learn -> LearnModuleScreen(depth)
+                        LabTab.Home -> HomeDashboard(
+                            continueTopic = lastTopic,
+                            onTopic = {
+                                selectedTopic = it
+                                lastTopic = it
+                                prefs.edit().putString("last_topic", it.id).apply()
+                                navigate(LabTab.Learn)
+                            },
+                            onLibrary = { selectedTopic = null; navigate(LabTab.Learn) },
+                            onSettings = { navigate(LabTab.Settings) },
+                            onTool = { name ->
+                                navigate(when (name) {
+                                    "Dataset Lab" -> LabTab.Data
+                                    "Training Playground" -> LabTab.Train
+                                    "Deep Learning" -> LabTab.Deep
+                                    "AI Engineering Studio" -> LabTab.Infer
+                                    else -> LabTab.Saved
+                                })
+                            }
+                        )
+                        LabTab.Learn -> LearnModuleScreen(depth, selectedTopic, onBackHome = { back() })
                         LabTab.Deep -> DeepLearningScreen()
                         LabTab.Train -> TrainingPlayground(selectedAlgorithm)
                         LabTab.Data -> DatasetLab()
                         LabTab.Infer -> AiEngineeringStudio()
                         LabTab.Saved -> SavedScreen(selectedAlgorithm)
+                        LabTab.Settings -> SettingsScreen(depth, onDepthChanged = { depth = it }, onBack = { back() })
                     }
                 }
-                BottomNav(selectedTab) { selectedTab = it }
+                if (selectedTab != LabTab.Home) HomeOnlyNav { selectedTopic = null; history.clear(); selectedTab = LabTab.Home }
             }
         }
+    }
+    if (showExitDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitDialog = false },
+            title = { Text("Exit the app?") },
+            text = { Text("Would you like to close AI/ML Learning Lab?") },
+            confirmButton = { TextButton(onClick = { showExitDialog = false; (context as? Activity)?.finish() }) { Text("Yes") } },
+            dismissButton = { TextButton(onClick = { showExitDialog = false }) { Text("No") } }
+        )
     }
 }
 
@@ -136,110 +190,6 @@ private fun OnboardingScreen(onStart: () -> Unit) {
             Text("Master machine learning with live equations, datasets, training snapshots and offline lessons.", color = LabMuted, fontSize = 15.sp)
         }
         GradientButton("Get Started", Modifier.fillMaxWidth(), onStart)
-    }
-}
-
-@Composable
-private fun HomeScreen(depth: LearningDepth, onDepthChanged: (LearningDepth) -> Unit, onOpen: (LabTab) -> Unit) {
-    LazyColumn(
-        Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text("ML & Deep Learning", color = LabText, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    Text("Learn - Train - Inspect - Deploy", color = LabMuted)
-                }
-                Text("Phase 5", color = LabGreen, fontWeight = FontWeight.Bold)
-            }
-        }
-        item { HeroPipeline(Modifier.fillMaxWidth()) }
-        item {
-            GlassPanel(Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SectionTitle("Learning Depth", "Choose the amount of mathematical detail")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        LearningDepth.entries.forEach {
-                            SegmentedOption(it.title, depth == it, Modifier.weight(1f)) { onDepthChanged(it) }
-                        }
-                    }
-                    Text(depth.description, color = LabMuted, fontSize = 12.sp)
-                }
-            }
-        }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    QuickCard("Learn Algorithms", "Full catalog", LabCyan, Modifier.weight(1f)) { onOpen(LabTab.Learn) }
-                    QuickCard("Training Playground", "Live snapshots", LabPurple, Modifier.weight(1f)) { onOpen(LabTab.Train) }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    QuickCard("Dataset Lab", "Edit 2D data", LabGreen, Modifier.weight(1f)) { onOpen(LabTab.Data) }
-                    QuickCard("AI Engineering Studio", "Real on-device models", LabOrange, Modifier.weight(1f)) { onOpen(LabTab.Infer) }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    QuickCard("Compare Models", "Metrics ready", LabBlue, Modifier.weight(1f)) { onOpen(LabTab.Train) }
-                    QuickCard("Neural Networks", "Build and inspect", LabPink, Modifier.weight(1f)) { onOpen(LabTab.Deep) }
-                }
-            }
-        }
-        item {
-            GlassPanel(Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SectionTitle("Complete AI Lifecycle", "Learn - build - understand - deploy - optimize")
-                    Text("${LearnCatalog.topics.size} structured lessons, modern architecture labs, real LiteRT/ONNX model import, live media pipelines, tensor inspection, quantization and device benchmarking.", color = LabMuted, fontSize = 13.sp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CatalogScreen(selected: Algorithm, depth: LearningDepth, onSelected: (Algorithm) -> Unit) {
-    var family by remember { mutableStateOf<AlgorithmFamily?>(null) }
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SectionTitle("Algorithms", "Classical ML plus Phase 2 neural-network foundations")
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SegmentedOption("All", family == null) { family = null }
-                    AlgorithmFamily.entries.take(3).forEach { item ->
-                        SegmentedOption(item.title, family == item) { family = item }
-                    }
-                }
-            }
-            items(MlLabContent.algorithms.filter { family == null || it.family == family }) { algorithm ->
-                AlgorithmRow(algorithm, selected.id == algorithm.id) { onSelected(algorithm) }
-            }
-            item { AlgorithmDetail(selected, depth) }
-        }
-    }
-}
-
-@Composable
-private fun AlgorithmDetail(algorithm: Algorithm, depth: LearningDepth) {
-    GlassPanel(Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionTitle(algorithm.title, "${algorithm.family.title} - ${algorithm.subtitle}")
-            Text(
-                when (algorithm.status) {
-                    AlgorithmStatus.Interactive -> if (algorithm.family == AlgorithmFamily.DeepLearning) {
-                        "Interactive lab is available in Deep. Build, train and inspect real neural-network parameters offline."
-                    } else {
-                        "Interactive lab is available in Train or Infer. Theory, visualisation and metrics share the reusable lesson framework."
-                    }
-                    AlgorithmStatus.LessonReady -> "Lesson structure is ready; full interactive training is scheduled after the Phase 1 flagship set."
-                    AlgorithmStatus.Future -> "Catalog placeholder for later phases. Navigation and content architecture already supports this topic."
-                },
-                color = LabMuted,
-                fontSize = 13.sp
-            )
-            MlLabContent.lessonSections.forEach { section ->
-                Text(section.title, color = LabText, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(section.body(depth), color = LabMuted, fontSize = 13.sp)
-            }
-        }
     }
 }
 
@@ -347,58 +297,9 @@ private fun DatasetLab() {
 }
 
 @Composable
-private fun InferenceLab() {
-    var queryX by remember { mutableFloatStateOf(0.18f) }
-    var queryY by remember { mutableFloatStateOf(0.12f) }
-    var threshold by remember { mutableFloatStateOf(0.5f) }
-    var k by remember { mutableIntStateOf(5) }
-    var manhattan by remember { mutableStateOf(false) }
-    val query = Point2D(queryX, queryY, 2)
-    val logistic = PhaseOneEngines.classifyLogistic(query, threshold)
-    val probability = PhaseOneEngines.logisticProbability(query)
-    val (knnVote, neighbours) = PhaseOneEngines.knnPredict(MlLabContent.classificationPoints, query, k, manhattan)
-    val (bayesVote, bayesProbabilities) = PhaseOneEngines.gaussianNaiveBayes(MlLabContent.classificationPoints, query)
-
-    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { SectionTitle("Model Inference", "Logistic regression, kNN and Naive Bayes run offline") }
-        item { DatasetGraph(MlLabContent.classificationPoints + query, selectedNeighbours = neighbours) }
-        item {
-            GlassPanel(Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SectionTitle("Query Point", "Move the point and watch predictions update")
-                    Text("X %.2f".format(queryX), color = LabMuted, fontSize = 12.sp)
-                    Slider(queryX, { queryX = it }, valueRange = -1f..1f)
-                    Text("Y %.2f".format(queryY), color = LabMuted, fontSize = 12.sp)
-                    Slider(queryY, { queryY = it }, valueRange = -1f..1f)
-                }
-            }
-        }
-        item {
-            GlassPanel(Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SectionTitle("Classification Metrics", "Probability, threshold, votes and likelihoods")
-                    Text("Threshold %.2f".format(threshold), color = LabMuted, fontSize = 12.sp)
-                    Slider(threshold, { threshold = it }, valueRange = 0.1f..0.9f)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        MetricPill("Logistic", "Class $logistic", LabPurple, Modifier.weight(1f))
-                        MetricPill("Prob", "%.2f".format(probability), LabCyan, Modifier.weight(1f))
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        SegmentedOption("K=$k", true, Modifier.weight(1f)) { k = if (k >= 7) 1 else k + 2 }
-                        SegmentedOption(if (manhattan) "Manhattan" else "Euclidean", manhattan, Modifier.weight(1f)) { manhattan = !manhattan }
-                        MetricPill("kNN", "Class $knnVote", LabGreen, Modifier.weight(1f))
-                    }
-                    MetricPill("Naive Bayes", "Class $bayesVote  A %.2f  B %.2f".format(bayesProbabilities[0] ?: 0f, bayesProbabilities[1] ?: 0f), LabOrange, Modifier.fillMaxWidth())
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun SavedScreen(selectedAlgorithm: Algorithm) {
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { SectionTitle("Bookmarks", "Local saved-learning shell for Phase 1") }
+        item { SectionTitle("Bookmarks", "Your saved learning notes") }
         items(MlLabContent.algorithms.filter { it.status != AlgorithmStatus.Future }.take(9)) {
             AlgorithmRow(it, it.id == selectedAlgorithm.id) {}
         }
@@ -417,26 +318,16 @@ private fun SavedScreen(selectedAlgorithm: Algorithm) {
 }
 
 @Composable
-private fun QuickCard(title: String, subtitle: String, accent: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    GlassPanel(modifier) {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
-                Text(title.first().toString(), color = accent, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            }
-            Text(title, color = LabText, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, color = LabMuted, fontSize = 12.sp)
-            SegmentedOption("Open", false, Modifier.fillMaxWidth(), onClick)
-        }
-    }
-}
-
-@Composable
 private fun AlgorithmRow(algorithm: Algorithm, selected: Boolean, onClick: () -> Unit) {
     GlassPanel(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(42.dp), contentAlignment = Alignment.Center) {
-                Text(algorithm.title.first().toString(), color = Color(algorithm.accent), fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            }
+            AlgorithmIcon(
+                title = algorithm.title,
+                section = algorithm.family.title,
+                domain = algorithm.family.title,
+                accent = algorithm.accent,
+                size = 42.dp
+            )
             Column(Modifier.weight(1f)) {
                 Text(algorithm.title, color = LabText, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${algorithm.family.title} - ${algorithm.status.name}", color = LabMuted, fontSize = 12.sp)
@@ -447,28 +338,33 @@ private fun AlgorithmRow(algorithm: Algorithm, selected: Boolean, onClick: () ->
 }
 
 @Composable
-private fun BottomNav(selected: LabTab, onSelected: (LabTab) -> Unit) {
+private fun HomeOnlyNav(onHome: () -> Unit) {
     Row(
-        Modifier
-            .fillMaxWidth()
-            .height(70.dp)
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        Modifier.fillMaxWidth().height(58.dp).background(Color(0xFF07152F))
+            .clickable(onClick = onHome).padding(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        LabTab.entries.forEach { tab ->
-            val active = selected == tab
-            Box(
-                Modifier
-                    .weight(1f)
-                    .height(52.dp)
-                    .background(if (active) LabPurple else LabPanelSoft, RoundedCornerShape(8.dp))
-                    .border(1.dp, if (active) Color.White.copy(alpha = 0.16f) else Color(0xFF2A365A), RoundedCornerShape(8.dp))
-                    .clickable { onSelected(tab) }
-                    .padding(horizontal = 2.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(tab.label, color = if (active) Color.White else LabMuted, fontSize = 10.sp, maxLines = 1)
+        Text("⌂", color = LabCyan, fontSize = 28.sp)
+        Text("  Home", color = LabText, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+    }
+}
+
+@Composable
+private fun SettingsScreen(depth: LearningDepth, onDepthChanged: (LearningDepth) -> Unit, onBack: () -> Unit) {
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item { SegmentedOption("‹  Back", false, onClick = onBack) }
+        item { SectionTitle("Settings", "Set your preferred learning experience") }
+        item {
+            GlassPanel(Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionTitle("Learning Depth", "Choose the amount of mathematical detail")
+                    LearningDepth.entries.forEach { option ->
+                        SegmentedOption("${option.title} — ${option.description}", depth == option, Modifier.fillMaxWidth()) {
+                            onDepthChanged(option)
+                        }
+                    }
+                }
             }
         }
     }

@@ -121,10 +121,37 @@ object LearnCatalog {
         domain("Recommendation Algorithms", "Rank relevant items for users", 0xFF2F7BFF,
             "Recommenders" to "Popularity-Based Recommendation|Content-Based Filtering|User-Based Collaborative Filtering|Item-Based Collaborative Filtering|Matrix Factorization|SVD|Alternating Least Squares|Neural Collaborative Filtering|Deep Recommendation Systems"),
         domain("Explainable AI", "Inspect why a model produced an output", 0xFFFF48BE,
-            "Explanation Methods" to "Feature Importance|Permutation Importance|Partial Dependence Plot|SHAP|LIME|Saliency Maps|Grad-CAM|Attention Visualization|Counterfactual Explanations")
-    )
+            "Explanation Methods" to "Feature Importance|Permutation Importance|Partial Dependence Plot|SHAP|LIME|Saliency Maps|Grad-CAM|Attention Visualization|Counterfactual Explanations"),
+        domain("AI Algorithms", "Explore graph and heuristic search step by step", 0xFF317CFF,
+            "Search" to "Breadth First Search|Bidirectional Search|Beam Search|Monte Carlo Tree Search|Alpha-Beta Pruning|AI Depth First Search|Greedy Best First Search|Minimax Search|Uniform Cost Search|Iterative Deepening Depth First Search|A Star Search|Simplified Memory-Bounded A Star Search|Hill Climbing Search|Local Beam Search",
+            "Probabilistic Graphs" to "Construction of Bayesian Network|Inference from Bayesian Network",
+            "Dynamic Programming" to "Policy Iteration|Value Iteration")
+    ).let { catalog ->
+        val evolutionary = catalog.first { it.title == "Evolutionary Algorithms" }
+        val optimizationTopics = evolutionary.sections.flatMap { it.topics }.filter {
+            it.title == "Simulated Annealing" || it.title == "Genetic Algorithm"
+        }
+        val reinforcement = catalog.flatMap { it.sections }.flatMap { it.topics }
+        val decisionTopics = listOf(
+            reinforcement.first { it.title == "Markov Decision Process" }.copy(title = "Markov Decision Process Explorer"),
+            reinforcement.first { it.title == "SARSA" }.copy(title = "SARSA Learning")
+        )
+        catalog.map { entry ->
+            if (entry.title == "AI Algorithms") entry.copy(
+                sections = entry.sections.map { section -> section.copy(topics = section.topics.map { topic ->
+                    if (topic.title == "Construction of Bayesian Network")
+                        reinforcement.first { it.title == "Bayesian Networks" }.copy(title = topic.title)
+                    else topic
+                }) } + LearnSection("Optimization & Evolution", optimizationTopics) +
+                    LearnSection("Decision Processes & Reinforcement Learning", decisionTopics +
+                        reinforcement.first { it.title == "Q-Learning" }.copy(title = "Q Learning")) +
+                    LearnSection("Hidden State Models", listOf(reinforcement.first { it.title == "Hidden Markov Models" }
+                        .copy(title = "Hidden Markov Model – Forward & Viterbi Algorithms")))
+            ) else entry
+        }
+    }
 
-    val topics: List<LearnTopic> = domains.flatMap { it.sections }.flatMap { it.topics }
+    val topics: List<LearnTopic> = domains.flatMap { it.sections }.flatMap { it.topics }.distinctBy { it.id }
 
     val flagshipTopics: List<LearnTopic> = listOfNotNull(
         topics.firstOrNull { it.title == "Simple Linear Regression" },

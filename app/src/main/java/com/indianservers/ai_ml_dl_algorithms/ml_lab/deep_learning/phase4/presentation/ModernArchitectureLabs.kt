@@ -102,7 +102,7 @@ fun ModernArchitectureLabs() {
         }
         GlassPanel(Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                SectionTitle("Phase 5", "Practical AI deployment coming next")
+                SectionTitle("AI Engineering", "Practical AI deployment")
                 Text("Pretrained models - LiteRT/TFLite - ONNX Runtime - NNAPI/GPU - camera, audio and text inference - quantization - export", color = LabMuted, fontSize = 12.sp)
             }
         }
@@ -200,7 +200,7 @@ private fun VisionTransformerLab() {
             Text("Overlay brightness is CLS-to-patch attention weight. Attention is an internal routing weight, not a causal explanation.", color = LabPink, fontSize = 12.sp)
         }
     }
-    GlassPanel(Modifier.fillMaxWidth()) { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { SectionTitle("CNN vs ViT", "Different inductive biases on the same synthetic shapes"); Text("CNN: local filters, translation-friendly hierarchy, strong small-data bias. Tiny ViT: patch tokens, global attention, weaker locality assumptions and usually greater data appetite.", color = LabMuted, fontSize = 12.sp); Text("This educational ViT runs a real forward pass; the Phase 3 CNN remains the trainable phone-scale classifier.", color = LabCyan, fontSize = 12.sp) } }
+    GlassPanel(Modifier.fillMaxWidth()) { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { SectionTitle("CNN vs ViT", "Different inductive biases on the same synthetic shapes"); Text("CNN: local filters, translation-friendly hierarchy, strong small-data bias. Tiny ViT: patch tokens, global attention, weaker locality assumptions and usually greater data appetite.", color = LabMuted, fontSize = 12.sp); Text("This educational ViT runs a real forward pass; the CNN remains the trainable phone-scale classifier.", color = LabCyan, fontSize = 12.sp) } }
 }
 
 @Composable
@@ -318,7 +318,7 @@ private fun ComparisonLab() {
             SectionTitle("Architecture Comparison", "Measured educational kernels, not production runtime claims")
             listOf("Transformer" to "Token relationships - O(n^2) attention memory", "ViT" to "Image patches and global token mixing", "GCN" to "Sparse neighborhood aggregation", "VAE" to "Regularized probabilistic latent generation", "GAN" to "Adversarial direct sampling", "Diffusion" to "Iterative denoising generation").forEach { (name, detail) -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(name, color = LabText, fontWeight = FontWeight.Bold); Text(detail, color = LabMuted, fontSize = 11.sp) } }
             MetricPill("Attention forward", "%.3f ms".format(attentionTime), LabCyan, Modifier.fillMaxWidth())
-            SegmentedOption("Save Phase 4 experiment", false, Modifier.fillMaxWidth()) { preferences.edit().putFloat("attention_ms", attentionTime.toFloat()).putLong("saved_at", System.currentTimeMillis()).apply() }
+            SegmentedOption("Save experiment", false, Modifier.fillMaxWidth()) { preferences.edit().putFloat("attention_ms", attentionTime.toFloat()).putLong("saved_at", System.currentTimeMillis()).apply() }
             Text("Explainability caveat: attention, feature maps, graph coefficients and latent dimensions reveal model internals, but none alone proves why a prediction happened.", color = LabPink, fontSize = 12.sp)
             Text("All labs use local Kotlin FloatArray computation and deterministic seeds. Sequence length, graph size, patch count and generation steps are deliberately constrained for memory and thermal safety.", color = LabMuted, fontSize = 12.sp)
         }

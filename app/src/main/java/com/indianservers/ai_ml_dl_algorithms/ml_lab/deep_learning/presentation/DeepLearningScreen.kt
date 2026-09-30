@@ -108,7 +108,7 @@ fun DeepLearningScreen() {
                     Text("Deep Learning", color = LabText, fontSize = 27.sp, fontWeight = FontWeight.Bold)
                     Text("Build - Train - Inspect - Understand", color = LabMuted, fontSize = 13.sp)
                 }
-                Text("Phase 4", color = LabPink, fontWeight = FontWeight.Bold)
+                Text("Deep Learning", color = LabPink, fontWeight = FontWeight.Bold)
             }
         }
         item {
@@ -151,7 +151,7 @@ fun DeepLearningScreen() {
             item {
                 GlassPanel(Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        SectionTitle("Coming Later", "Phase 4 modern architectures")
+                        SectionTitle("Coming Later", "Modern neural architectures")
                         Text("Attention - Transformers - Vision Transformers - GANs - Diffusion - Graph Neural Networks", color = LabMuted, fontSize = 12.sp)
                     }
                 }

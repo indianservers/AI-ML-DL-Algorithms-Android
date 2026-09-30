@@ -72,9 +72,10 @@ fun PhaseTwoAlgorithmLab(
     depth: LearningDepth,
     completed: Boolean,
     onBack: () -> Unit,
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
+    embedded: Boolean = false
 ) {
-    var section by remember(topic.id) { mutableStateOf(PhaseTwoSection.Understand) }
+    var section by remember(topic.id) { mutableStateOf(if (embedded) PhaseTwoSection.Visualize else PhaseTwoSection.Understand) }
     var classes by remember(topic.id) { mutableIntStateOf(if (kind in binaryOnlyKinds) 2 else 3) }
     var preset by remember(topic.id) { mutableStateOf(defaultPreset(kind)) }
     var noise by remember(topic.id) { mutableDoubleStateOf(0.12) }
@@ -88,7 +89,7 @@ fun PhaseTwoAlgorithmLab(
 
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (!embedded) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 SegmentedOption("<", false, Modifier.size(42.dp), onBack)
                 Column(Modifier.weight(1f)) {
                     Text(topic.title, color = LabText, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 2)

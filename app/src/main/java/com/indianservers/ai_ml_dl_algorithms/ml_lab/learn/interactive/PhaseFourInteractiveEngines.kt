@@ -308,16 +308,34 @@ object PhaseFourEngines {
         val init = mapOf("Sunny" to .6, "Rainy" to .4)
         val trans = mapOf("Sunny" to mapOf("Sunny" to .7, "Rainy" to .3), "Rainy" to mapOf("Sunny" to .4, "Rainy" to .6))
         val emit = mapOf("Sunny" to mapOf("Walk" to .6, "Shop" to .3, "Clean" to .1), "Rainy" to mapOf("Walk" to .1, "Shop" to .4, "Clean" to .5))
+        require(observations.isNotEmpty() && observations.all { it in emit.getValue("Sunny") })
         val forward = mutableListOf<Map<String, Double>>()
+        var logLikelihood = 0.0
+        var scores = DoubleArray(states.size)
+        val backpointers = Array(observations.size) { IntArray(states.size) }
         observations.forEachIndexed { t, obs ->
             val raw = states.associateWith { s ->
                 val prev = if (t == 0) init.getValue(s) else states.sumOf { p -> forward[t - 1].getValue(p) * trans.getValue(p).getValue(s) }
                 prev * emit.getValue(s).getValue(obs)
             }
             val total = raw.values.sum().coerceAtLeast(1e-12)
+            logLikelihood += ln(total)
             forward += raw.mapValues { it.value / total }
+            val previousScores = scores
+            scores = DoubleArray(states.size) { i ->
+                val state = states[i]
+                if (t == 0) ln(init.getValue(state)) + ln(emit.getValue(state).getValue(obs))
+                else {
+                    val predecessor = states.indices.maxBy { j -> previousScores[j] + ln(trans.getValue(states[j]).getValue(state)) }
+                    backpointers[t][i] = predecessor
+                    previousScores[predecessor] + ln(trans.getValue(states[predecessor]).getValue(state)) + ln(emit.getValue(state).getValue(obs))
+                }
+            }
         }
-        return HmmState(forward, forward.map { it.maxBy { e -> e.value }.key }, forward.last().values.max())
+        val path = IntArray(observations.size)
+        path[path.lastIndex] = scores.indices.maxBy { scores[it] }
+        for (t in path.lastIndex downTo 1) path[t - 1] = backpointers[t][path[t]]
+        return HmmState(forward, path.map { states[it] }, exp(logLikelihood))
     }
 
     fun gaussianProcess(observations: List<Pair<Double, Double>>, lengthScale: Double, noise: Double): GpState {

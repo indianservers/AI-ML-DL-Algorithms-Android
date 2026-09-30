@@ -1,5 +1,8 @@
 package com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -38,6 +42,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,6 +63,8 @@ import com.indianservers.ai_ml_dl_algorithms.ml_lab.components.SectionTitle
 import com.indianservers.ai_ml_dl_algorithms.ml_lab.components.SegmentedOption
 import com.indianservers.ai_ml_dl_algorithms.ml_lab.domain.LearningDepth
 import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.LearnTopic
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.LogisticModel
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.fitLogistic
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.sqrt
@@ -71,9 +78,12 @@ fun PhaseOneAlgorithmLab(
     depth: LearningDepth,
     completed: Boolean,
     onBack: () -> Unit,
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
+    embedded: Boolean = false,
+    sharedPoints: SnapshotStateList<LabPoint>? = null
 ) {
-    var section by remember(topic.id) { mutableStateOf(LabSection.Learn) }
+    val context = LocalContext.current
+    var section by remember(topic.id, embedded) { mutableStateOf(if (embedded) LabSection.Visualize else LabSection.Learn) }
     val classification = kind in setOf(
         PhaseOneAlgorithmKind.LogisticRegression,
         PhaseOneAlgorithmKind.Knn,
@@ -87,12 +97,29 @@ fun PhaseOneAlgorithmLab(
     var seed by remember(topic.id) { mutableIntStateOf(7) }
     var liveUpdate by remember(topic.id) { mutableStateOf(true) }
     var selectedIndex by remember(topic.id) { mutableIntStateOf(-1) }
-    val points = remember(topic.id, seed, preset, samples, noise) {
+    val generatedPoints = remember(topic.id, seed, preset, samples, noise) {
         mutableStateListOf<LabPoint>().apply { addAll(PhaseOneDatasets.generate(preset, samples, noise, seed)) }
+    }
+    val points = sharedPoints ?: generatedPoints
+    var datasetMessage by remember(topic.id) { mutableStateOf("") }
+    val importCsv = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) runCatching {
+            val parsed = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
+                reader.lineSequence().mapNotNull { row ->
+                    val values = row.split(',', ';', '\t').map(String::trim)
+                    val x = values.getOrNull(0)?.toDoubleOrNull()
+                    val y = values.getOrNull(1)?.toDoubleOrNull()
+                    if (x != null && y != null) LabPoint(x, y, values.getOrNull(2)?.toIntOrNull() ?: 0, y) else null
+                }.toList()
+            }.orEmpty()
+            require(parsed.size >= 2) { "CSV needs numeric x,y rows." }
+            points.clear(); points.addAll(parsed)
+            datasetMessage = "Loaded ${parsed.size} rows"
+        }.onFailure { datasetMessage = it.message ?: "Unable to read dataset" }
     }
 
     Column(Modifier.fillMaxSize()) {
-        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        if (!embedded) Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 SegmentedOption("<", false, Modifier.size(42.dp), onBack)
                 Column(Modifier.weight(1f)) {
@@ -107,6 +134,22 @@ fun PhaseOneAlgorithmLab(
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 LabSection.entries.forEach { item -> SegmentedOption(item.label, section == item) { section = item } }
             }
+        }
+        if (embedded) {
+            val presets = if (classification)
+                listOf(DatasetPreset.TwoClusters, DatasetPreset.OverlappingClasses, DatasetPreset.XorLike, DatasetPreset.Circular)
+            else listOf(DatasetPreset.LinearNoise, DatasetPreset.PerfectLinear, DatasetPreset.Outliers, DatasetPreset.Polynomial)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SegmentedOption("Load CSV", false) { importCsv.launch(arrayOf("text/csv", "text/plain", "application/octet-stream")) }
+                presets.forEach { option ->
+                    SegmentedOption(option.label, preset == option) {
+                        preset = option
+                        points.clear()
+                        points.addAll(PhaseOneDatasets.generate(option, samples, noise, seed))
+                    }
+                }
+            }
+            if (datasetMessage.isNotBlank()) Text(datasetMessage, color = LabCyan, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 16.dp))
         }
         when (section) {
             LabSection.Learn -> LearnSection(kind)
@@ -156,8 +199,6 @@ private fun VisualizeSection(
     selectedIndex: Int,
     onSelected: (Int) -> Unit
 ) {
-    var weight by remember(kind) { mutableDoubleStateOf(0.62) }
-    var bias by remember(kind) { mutableDoubleStateOf(-0.08) }
     var degree by remember(kind) { mutableIntStateOf(3) }
     var alpha by remember(kind) { mutableDoubleStateOf(0.25) }
     var l1Ratio by remember(kind) { mutableDoubleStateOf(0.5) }
@@ -166,11 +207,10 @@ private fun VisualizeSection(
     var metric by remember(kind) { mutableStateOf(DistanceMetric.Euclidean) }
     var criterion by remember(kind) { mutableStateOf(SplitCriterion.Gini) }
     var showResiduals by remember(kind) { mutableStateOf(true) }
-    var showOptimal by remember(kind) { mutableStateOf(false) }
     var query by remember(kind) { mutableStateOf(LabPoint(0.16, 0.08, 0)) }
 
     val regressionFit = when (kind) {
-        PhaseOneAlgorithmKind.SimpleLinearRegression -> PhaseOneEngines.fitSimpleLinear(points, weight, bias)
+        PhaseOneAlgorithmKind.SimpleLinearRegression -> PhaseOneEngines.fitSimpleLinear(points)
         PhaseOneAlgorithmKind.MultipleLinearRegression -> PhaseOneEngines.fitMultiple(points)
         PhaseOneAlgorithmKind.PolynomialRegression -> PhaseOneEngines.fitPolynomial(points, degree)
         PhaseOneAlgorithmKind.RidgeRegression -> PhaseOneEngines.fitRidge(points, alpha)
@@ -179,9 +219,10 @@ private fun VisualizeSection(
         PhaseOneAlgorithmKind.DecisionTreeRegression -> PhaseOneEngines.fitSimpleLinear(points)
         else -> null
     }
-    val logisticMetrics = if (kind == PhaseOneAlgorithmKind.LogisticRegression) {
-        PhaseOneEngines.logisticMetrics(points, 3.2, 2.4, -0.05, threshold)
-    } else null
+    val logisticModel = if (kind == PhaseOneAlgorithmKind.LogisticRegression) runCatching { fitLogistic(points) }.getOrNull() else null
+    val logisticMetrics = logisticModel?.let {
+        PhaseOneEngines.logisticMetrics(points, it.weightX, it.weightY, it.bias, threshold)
+    }
     val knnResult = if (kind == PhaseOneAlgorithmKind.Knn) PhaseOneEngines.knn(points, query, k, metric) else null
     val split = when (kind) {
         PhaseOneAlgorithmKind.DecisionTreeClassification -> PhaseOneEngines.bestClassificationSplit(points, criterion)
@@ -190,7 +231,7 @@ private fun VisualizeSection(
     }
 
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { SectionTitle("Visualize", "Touch data, change parameters, watch the model recompute") }
+        item { SectionTitle("Visualize", "Touch or drag data points; the fitted model updates automatically") }
         item {
             InteractiveDatasetCanvas(
                 points = points,
@@ -198,6 +239,7 @@ private fun VisualizeSection(
                 showResiduals = showResiduals,
                 regressionFit = regressionFit,
                 logisticThreshold = if (kind == PhaseOneAlgorithmKind.LogisticRegression) threshold else null,
+                logisticModel = logisticModel,
                 knnQuery = if (kind == PhaseOneAlgorithmKind.Knn) query else null,
                 knnNeighbours = knnResult?.second?.map { it.first }.orEmpty(),
                 treeSplit = split,
@@ -212,12 +254,8 @@ private fun VisualizeSection(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     when (kind) {
                         PhaseOneAlgorithmKind.SimpleLinearRegression -> {
-                            SliderRow("Slope w", weight, -5.0, 5.0) { weight = it }
-                            SliderRow("Intercept b", bias, -1.0, 1.0) { bias = it }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                                SegmentedOption(if (showResiduals) "Residuals on" else "Residuals off", showResiduals, Modifier.weight(1f)) { showResiduals = !showResiduals }
-                                SegmentedOption(if (showOptimal) "Best shown" else "Check my line", showOptimal, Modifier.weight(1f)) { showOptimal = !showOptimal }
-                            }
+                            Text("Slope and intercept are learned from the data points.", color = LabMuted, fontSize = 12.sp)
+                            SegmentedOption(if (showResiduals) "Residuals on" else "Residuals off", showResiduals) { showResiduals = !showResiduals }
                         }
                         PhaseOneAlgorithmKind.PolynomialRegression -> SliderRow("Degree", degree.toDouble(), 1.0, 8.0) { degree = it.toInt().coerceIn(1, 8) }
                         PhaseOneAlgorithmKind.RidgeRegression, PhaseOneAlgorithmKind.LassoRegression -> SliderRow("Lambda alpha", alpha, 0.0, 2.0) { alpha = it }
@@ -246,7 +284,7 @@ private fun VisualizeSection(
                 }
             }
         }
-        item { AlgorithmSpecificCard(kind, regressionFit, logisticMetrics, knnResult, split, showOptimal, points, weight, bias) }
+        item { AlgorithmSpecificCard(kind, regressionFit, logisticMetrics, knnResult, split) }
     }
 }
 
@@ -357,7 +395,11 @@ private fun MetricsSection(kind: PhaseOneAlgorithmKind, points: List<LabPoint>) 
         PhaseOneAlgorithmKind.DecisionTreeClassification
     )
     val fit = if (regression) PhaseOneEngines.fitSimpleLinear(points) else null
-    val metrics = if (!regression) PhaseOneEngines.logisticMetrics(points, 3.2, 2.4, -0.05, 0.5) else null
+    val metrics = if (kind == PhaseOneAlgorithmKind.LogisticRegression) {
+        runCatching { fitLogistic(points) }.getOrNull()?.let {
+            PhaseOneEngines.logisticMetrics(points, it.weightX, it.weightY, it.bias, 0.5)
+        }
+    } else null
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { SectionTitle("Metrics", "Only metrics that make sense for this algorithm are shown") }
         if (fit != null) item {
@@ -390,6 +432,7 @@ private fun InteractiveDatasetCanvas(
     showResiduals: Boolean,
     regressionFit: RegressionFit?,
     logisticThreshold: Double?,
+    logisticModel: LogisticModel?,
     knnQuery: LabPoint?,
     knnNeighbours: List<LabPoint>,
     treeSplit: TreeSplit?,
@@ -470,10 +513,18 @@ private fun InteractiveDatasetCanvas(
         drawLine(Color.White.copy(alpha = .18f), Offset(0f, sy(0.0)), Offset(size.width, sy(0.0)))
         drawLine(Color.White.copy(alpha = .18f), Offset(sx(0.0), 0f), Offset(sx(0.0), size.height))
 
-        logisticThreshold?.let { threshold ->
-            val boundaryBias = -0.05 - kotlin.math.ln(threshold / (1.0 - threshold))
-            drawProbabilityField(threshold)
-            drawLine(Color.White, Offset(0f, sy((-3.2 * -1.0 - boundaryBias) / 2.4)), Offset(size.width, sy((-3.2 * 1.0 - boundaryBias) / 2.4)), 4f, cap = StrokeCap.Round)
+        if (logisticThreshold != null && logisticModel != null) {
+            val boundaryBias = logisticModel.bias - kotlin.math.ln(logisticThreshold / (1.0 - logisticThreshold))
+            drawProbabilityField(logisticThreshold, logisticModel)
+            if (abs(logisticModel.weightY) > 1e-6) {
+                drawLine(Color.White,
+                    Offset(0f, sy((-logisticModel.weightX * -1.0 - boundaryBias) / logisticModel.weightY)),
+                    Offset(size.width, sy((-logisticModel.weightX - boundaryBias) / logisticModel.weightY)),
+                    4f, cap = StrokeCap.Round)
+            } else if (abs(logisticModel.weightX) > 1e-6) {
+                val x = sx(-boundaryBias / logisticModel.weightX)
+                drawLine(Color.White, Offset(x, 0f), Offset(x, size.height), 4f, cap = StrokeCap.Round)
+            }
         }
         treeSplit?.let {
             val value = if (it.feature == "x") sx(it.threshold) else sy(it.threshold)
@@ -510,7 +561,7 @@ private fun InteractiveDatasetCanvas(
     }
 }
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawProbabilityField(threshold: Double) {
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawProbabilityField(threshold: Double, model: LogisticModel) {
     val cells = 16
     val w = size.width / cells
     val h = size.height / cells
@@ -519,7 +570,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawProbabilityFiel
         val row = index / cells
         val x = -1.0 + 2.0 * (col + .5) / cells
         val y = 1.0 - 2.0 * (row + .5) / cells
-        val p = PhaseOneEngines.logisticProbability(LabPoint(x, y), 3.2, 2.4, -0.05)
+        val p = model.probability(x, y)
         drawRect(if (p >= threshold) LabCyan.copy(alpha = .08f + p.toFloat() * .16f) else LabPink.copy(alpha = .08f + (1f - p.toFloat()) * .16f), Offset(col * w, row * h), Size(w, h))
     }
 }
@@ -530,11 +581,7 @@ private fun AlgorithmSpecificCard(
     fit: RegressionFit?,
     classification: ClassificationMetrics?,
     knn: Pair<Int, List<Pair<LabPoint, Double>>>?,
-    split: TreeSplit?,
-    showOptimal: Boolean,
-    points: List<LabPoint>,
-    weight: Double,
-    bias: Double
+    split: TreeSplit?
 ) {
     GlassPanel(Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -545,10 +592,8 @@ private fun AlgorithmSpecificCard(
                         MetricPill("MAE", "%.4f".format(fit.mae), LabPurple, Modifier.weight(1f))
                         MetricPill("R2", "%.3f".format(fit.r2), LabGreen, Modifier.weight(1f))
                     }
-                    if (kind == PhaseOneAlgorithmKind.SimpleLinearRegression && showOptimal) {
-                        val best = PhaseOneEngines.fitSimpleLinear(points)
-                        Text("Your line: w=%.2f, b=%.2f, MSE=%.3f".format(weight, bias, fit.mse), color = LabMuted, fontSize = 12.sp)
-                        Text("Optimal least-squares line: w=%.2f, b=%.2f, MSE=%.3f".format(best.weights.first(), best.bias, best.mse), color = LabGreen, fontSize = 12.sp)
+                    if (kind == PhaseOneAlgorithmKind.SimpleLinearRegression) {
+                        Text("Fitted line: slope %.2f, intercept %.2f".format(fit.weights.first(), fit.bias), color = LabGreen, fontSize = 12.sp)
                     }
                     if (kind in setOf(PhaseOneAlgorithmKind.RidgeRegression, PhaseOneAlgorithmKind.LassoRegression, PhaseOneAlgorithmKind.ElasticNetRegression)) {
                         CoefficientChart(fit.weights)
@@ -718,8 +763,8 @@ private fun phaseOneExplanation(kind: PhaseOneAlgorithmKind): Explanation = when
     PhaseOneAlgorithmKind.SimpleLinearRegression -> Explanation(
         "Linear regression finds the straight line that minimizes prediction error between observed and predicted values.",
         "y_hat = wx + b",
-        "x = input, y_hat = prediction, w = slope, b = intercept. Changing w rotates the line; changing b translates it.",
-        "Tap or drag samples, adjust slope/intercept, inspect residuals, then compare your line with the least-squares optimum.",
+        "x = input, y_hat = prediction, w = learned slope, b = learned intercept. The fitting algorithm computes w and b from the data.",
+        "Tap or drag samples and inspect how the fitted line and residuals update automatically.",
         "The line moves because MSE changes. Gradient descent uses the sign and size of the gradients to reduce that error."
     )
     PhaseOneAlgorithmKind.MultipleLinearRegression -> Explanation(

@@ -71,6 +71,8 @@ class PhaseFourInteractiveEngineTest {
         assertEquals(3, hmm.forward.size)
         assertEquals(3, hmm.viterbi.size)
         assertTrue(hmm.forward.all { kotlin.math.abs(it.values.sum() - 1.0) < 1e-9 })
+        assertEquals(listOf("Sunny", "Rainy", "Rainy"), hmm.viterbi)
+        assertEquals(.03564, hmm.probability, 1e-10)
     }
 
     @Test

@@ -85,7 +85,7 @@ fun ArchitectureLabs() {
             ArchitectureLab.Embeddings -> EmbeddingLab()
             ArchitectureLab.Inspector -> ArchitectureInspector()
         }
-        GlassPanel(Modifier.fillMaxWidth()) { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { SectionTitle("Continue to Modern", "Phase 4 is available in the Modern tab"); Text("Attention - Transformers - Vision Transformers - GNNs - VAEs - GANs - Diffusion", color = LabMuted, fontSize = 12.sp) } }
+        GlassPanel(Modifier.fillMaxWidth()) { Column(verticalArrangement = Arrangement.spacedBy(7.dp)) { SectionTitle("Continue to Modern", "Explore more in the Modern tab"); Text("Attention - Transformers - Vision Transformers - GNNs - VAEs - GANs - Diffusion", color = LabMuted, fontSize = 12.sp) } }
     }
 }
 
@@ -304,7 +304,7 @@ private fun EmbeddingLab() {
             VectorBars(firstToken, embedding.lookup(firstToken), LabCyan); VectorBars(secondToken, embedding.lookup(secondToken), LabPink)
             MetricPill("Cosine similarity", "%.4f".format(embedding.cosine(firstToken, secondToken)), LabPurple, Modifier.fillMaxWidth())
             EmbeddingPlot(embedding)
-            Text("One-hot uses one dimension per vocabulary item. An embedding performs a trainable row lookup and can place related tokens near one another. The 2D view uses the first two coordinates of this tiny table; Phase 1 PCA remains available for larger vectors.", color = LabMuted, fontSize = 12.sp)
+            Text("One-hot uses one dimension per vocabulary item. An embedding performs a trainable row lookup and can place related tokens near one another. The 2D view uses the first two coordinates of this tiny table; PCA remains available for larger vectors.", color = LabMuted, fontSize = 12.sp)
         }
     }
 }
@@ -324,7 +324,7 @@ private fun ArchitectureInspector() {
             MetricPill("Measured inference", "%.3f ms".format(benchmarkNanos / 120.0 / 1_000_000.0), LabGreen, Modifier.fillMaxWidth())
             Text("CameraFrame -> ImagePreprocessor -> ModelBackend -> InferenceResult", color = LabText, fontWeight = FontWeight.Bold)
             Text("No network access or native runtime is required. TFLite can later implement the same backend contract for imported optimized models without replacing the educational engine.", color = LabMuted, fontSize = 12.sp)
-            Text("Saved model compatibility: Phase 3 stores architecture metadata and measured metrics locally. Full binary tensor checkpoints remain versioned future work.", color = LabMuted, fontSize = 12.sp)
+            Text("Saved model compatibility: This app stores architecture metadata and measured metrics locally. Full binary tensor checkpoints remain versioned future work.", color = LabMuted, fontSize = 12.sp)
         }
     }
 }

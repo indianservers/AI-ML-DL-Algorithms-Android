@@ -60,18 +60,19 @@ fun PhaseNineGenerativeLab(
     depth: LearningDepth,
     completed: Boolean,
     onBack: () -> Unit,
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
+    embedded: Boolean = false
 ) {
     var section by remember(topic.id) { mutableStateOf(defaultGenerativeSection(concept)) }
     Column(Modifier.fillMaxSize()) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (!embedded) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 SegmentedOption("<", false, Modifier.size(42.dp), onBack)
                 Column(Modifier.weight(1f)) {
                     Text(topic.title, color = LabText, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 2)
                     Text("Generative AI - ${depth.title}", color = Color(topic.accent), fontSize = 11.sp)
                 }
-                Text(if (completed) "Completed" else "Phase 9", color = if (completed) LabGreen else LabMuted, fontSize = 11.sp)
+                Text(if (completed) "Completed" else depth.title, color = if (completed) LabGreen else LabMuted, fontSize = 11.sp)
             }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 GenerativeSection.entries.forEach { SegmentedOption(it.label, section == it) { section = it } }

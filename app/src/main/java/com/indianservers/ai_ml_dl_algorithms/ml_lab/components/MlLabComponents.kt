@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -73,8 +74,8 @@ fun LabGradientBackground(content: @Composable () -> Unit) {
 fun GlassPanel(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(
         modifier
-            .background(LabPanel.copy(alpha = 0.82f), RoundedCornerShape(8.dp))
-            .border(1.dp, LabBorder.copy(alpha = 0.85f), RoundedCornerShape(8.dp))
+            .background(LabPanel.copy(alpha = 0.88f), RoundedCornerShape(14.dp))
+            .border(1.dp, LabBorder.copy(alpha = 0.95f), RoundedCornerShape(14.dp))
             .padding(14.dp)
     ) {
         content()
@@ -99,8 +100,12 @@ fun GradientButton(text: String, modifier: Modifier = Modifier, onClick: () -> U
 fun SegmentedOption(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
         modifier
-            .background(if (selected) LabPurple else LabPanelSoft, RoundedCornerShape(8.dp))
-            .border(1.dp, if (selected) Color.White.copy(alpha = 0.16f) else LabBorder, RoundedCornerShape(8.dp))
+            .shadow(if (selected) 7.dp else 0.dp, RoundedCornerShape(11.dp), ambientColor = LabPurple, spotColor = LabPurple)
+            .background(
+                Brush.horizontalGradient(if (selected) listOf(LabBlue, LabPurple) else listOf(LabPanelSoft, Color(0xFF101D39))),
+                RoundedCornerShape(11.dp)
+            )
+            .border(1.dp, if (selected) Color(0xFF9BB5FF) else LabBorder, RoundedCornerShape(11.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 9.dp),
         contentAlignment = Alignment.Center
