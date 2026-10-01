@@ -62,11 +62,12 @@ object PhaseEightEngines {
             }
         }
 
-    fun attention(tokens: List<String> = defaultTokens, dim: Int = 4, causal: Boolean = false, temperature: Double = 1.0): AttentionState {
+    fun attention(tokens: List<String> = defaultTokens, dim: Int = 4, causal: Boolean = false,
+                  temperature: Double = 1.0, projectionOffset: Int = 0): AttentionState {
         val x = embeddings(tokens, dim)
-        val q = projection(x, 11)
-        val k = projection(x, 17)
-        val v = projection(x, 23)
+        val q = projection(x, 11 + projectionOffset)
+        val k = projection(x, 17 + projectionOffset)
+        val v = projection(x, 23 + projectionOffset)
         val scale = sqrt(dim.toDouble()) * temperature.coerceAtLeast(.05)
         val scoreRows = q.mapIndexed { qi, qv ->
             k.mapIndexed { ki, kv ->
@@ -86,7 +87,9 @@ object PhaseEightEngines {
     }
 
     fun multiHead(tokens: List<String> = defaultTokens, heads: Int = 2, dim: Int = 4): MultiHeadState {
-        val states = List(heads.coerceIn(1, 4)) { h -> attention(tokens, dim, causal = false, temperature = 1.0 + h * .25) }
+        val states = List(heads.coerceIn(1, 4)) { h ->
+            attention(tokens, dim, causal = false, projectionOffset = h * 31)
+        }
         val concat = tokens.indices.map { t -> states.flatMap { it.output[t] } }
         val projected = concat.map { row -> List(dim) { d -> row.indices.sumOf { i -> row[i] * deterministic(41, i, d) } / sqrt(row.size.toDouble()) } }
         return MultiHeadState(states, concat, projected)

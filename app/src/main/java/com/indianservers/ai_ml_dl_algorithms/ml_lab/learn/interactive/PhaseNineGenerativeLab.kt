@@ -80,7 +80,7 @@ fun PhaseNineGenerativeLab(
         }
         when (section) {
             GenerativeSection.Map -> GenerativeMapSection { section = it }
-            GenerativeSection.Autoencoder -> AutoencoderSection()
+            GenerativeSection.Autoencoder -> AutoencoderSection(topic.title == "Denoising Autoencoder")
             GenerativeSection.Vae -> VaeSection()
             GenerativeSection.Gan -> GanSection()
             GenerativeSection.Diffusion -> DiffusionSection()
@@ -102,57 +102,40 @@ private fun GenerativeMapSection(open: (GenerativeSection) -> Unit) {
 }
 
 @Composable
-private fun AutoencoderSection() {
-    var shape by remember { mutableStateOf(GenShape.Circle) }
-    var latentDims by remember { mutableIntStateOf(2) }
-    var dragX by remember { mutableFloatStateOf(-.75f) }
-    var dragY by remember { mutableFloatStateOf(.65f) }
-    var mix by remember { mutableFloatStateOf(.5f) }
+private fun AutoencoderSection(denoising: Boolean) {
+    var shape by remember(denoising) { mutableStateOf(if (denoising) GenShape.Circle else GenShape.X) }
+    var latentDims by remember(denoising) { mutableIntStateOf(if (denoising) 8 else 2) }
     val state = PhaseNineEngines.autoencoder(shape, latentDims)
-    val dragged = PhaseNineEngines.decodeDragged(dragX.toDouble(), dragY.toDouble())
-    val interp = PhaseNineEngines.interpolate(shape, GenShape.X, mix.toDouble())
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { SectionTitle("Autoencoder Bottleneck", "Input -> Encoder -> 2D latent -> Decoder -> Reconstruction") }
+        item { SectionTitle(if (denoising) "Denoising bottleneck" else "Autoencoder bottleneck",
+            if (denoising) "Noisy input → compact code → clean estimate" else "Input → compact code → reconstruction") }
+        item { Text("Fixed orthogonal shape-basis teaching projection; this screen does not train neural weights.",
+            color = LabMuted, fontSize = 11.sp) }
         item { ShapePicker(shape) { shape = it } }
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PixelImage(state.original, "Original", Modifier.weight(1f))
-                PixelImage(state.reconstruction, "Reconstruction", Modifier.weight(1f))
-            }
-        }
-        item {
+        if (denoising) item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PixelImage(state.noisy, "Noisy input", Modifier.weight(1f))
-                PixelImage(state.denoised, "Denoised", Modifier.weight(1f))
+                PixelImage(state.denoised, "Decoded from noisy code", Modifier.weight(1f))
+            }
+        } else item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PixelImage(state.original, "Original", Modifier.weight(1f))
+                PixelImage(state.reconstruction, "Decoded from code", Modifier.weight(1f))
             }
         }
         item { Slider9("Latent dimensions", latentDims.toDouble(), 1.0, 8.0) { latentDims = listOf(1, 2, 4, 8).minBy { k -> kotlin.math.abs(k - it.toInt()) } } }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Vector9("Hidden 16", state.hidden.take(8), Modifier.weight(1f))
-                Vector9("Latent", state.latent, Modifier.weight(1f))
+                Vector9("Basis coefficients", state.hidden.take(8), Modifier.weight(1f))
+                Vector9("Kept code", state.latent, Modifier.weight(1f))
             }
         }
-        item { LatentPlot(PhaseNineEngines.latentPoints(), Point2(dragX.toDouble(), dragY.toDouble())) }
-        item {
-            GlassPanel(Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Drag-through-latent-space decoder", color = LabText, fontWeight = FontWeight.Bold)
-                    Slider9("x", dragX.toDouble(), -1.2, 1.2) { dragX = it.toFloat() }
-                    Slider9("y", dragY.toDouble(), -1.2, 1.2) { dragY = it.toFloat() }
-                    PixelImage(dragged, "Decoded at [%.2f, %.2f]".format(dragX, dragY), Modifier.fillMaxWidth())
-                }
-            }
-        }
-        item {
-            GlassPanel(Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Slider9("Interpolate ${shape.label} -> X", mix.toDouble(), 0.0, 1.0) { mix = it.toFloat() }
-                    PixelImage(interp.reconstruction, "Decoded interpolation", Modifier.fillMaxWidth())
-                }
-            }
-        }
-        item { Info9("Pixel error", "Selected pixel ${state.selectedPixel}: MSE %.4f, total reconstruction MSE %.4f. Smaller bottlenecks keep less detail.".format(state.selectedPixelError, state.loss)) }
+        if (denoising) item { Info9("Denoising error",
+            "Noisy MSE %.4f → decoded MSE %.4f against the clean reference. The decoder reads the noisy code only."
+                .format(PhaseNineEngines.mse(state.original, state.noisy), PhaseNineEngines.mse(state.original, state.denoised))) }
+        else item { Info9("Reconstruction error",
+            "Selected pixel ${state.selectedPixel}: squared error %.4f, total MSE %.4f. More retained coefficients preserve more detail."
+                .format(state.selectedPixelError, state.loss)) }
     }
 }
 
@@ -165,6 +148,8 @@ private fun VaeSection() {
     val prior = PhaseNineEngines.sampleVaePrior(seed + 9)
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { SectionTitle("Variational Autoencoder", "Encoder outputs a distribution, then z = mu + sigma * epsilon") }
+        item { Text("Fixed illustrative encoder parameters; beta changes this toy distribution and objective, without training weights.",
+            color = LabMuted, fontSize = 11.sp) }
         item { ShapePicker(shape) { shape = it } }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -205,6 +190,8 @@ private fun GanSection() {
     val state = PhaseNineEngines.gan(preset, steps)
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { SectionTitle("GAN Competition", "Real ring points vs generated points with a discriminator surface") }
+        item { Text("Analytic teaching generator and discriminator; the progression does not train network weights.",
+            color = LabMuted, fontSize = 11.sp) }
         item {
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 GanPreset.entries.forEach { SegmentedOption(it.label, preset == it) { preset = it } }
@@ -212,7 +199,7 @@ private fun GanSection() {
         }
         item { GanPlot(state) }
         item { DiscriminatorField(state) }
-        item { Slider9("Alternating training steps", steps.toDouble(), 1.0, 30.0) { steps = it.toInt() } }
+        item { Slider9("Illustrative progression", steps.toDouble(), 1.0, 30.0) { steps = it.toInt() } }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 MetricPill("D loss", "%.3f".format(state.discriminatorLoss), LabOrange, Modifier.weight(1f))
@@ -234,7 +221,9 @@ private fun DiffusionSection() {
     var denoiseSteps by remember { mutableIntStateOf(6) }
     val state = PhaseNineEngines.diffusion(shape, step, seed = seed, denoiseSteps = denoiseSteps)
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { SectionTitle("Diffusion Denoising", "Forward adds known noise; reverse predicts and removes noise") }
+        item { SectionTitle("Diffusion noise equation", "Forward adds noise; a fixed basis estimates and subtracts it") }
+        item { Text("Teaching predictor only: no trained diffusion network or multi-step sampler is connected.",
+            color = LabMuted, fontSize = 11.sp) }
         item { ShapePicker(shape) { shape = it } }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -249,7 +238,7 @@ private fun DiffusionSection() {
             }
         }
         item { Slider9("Noise step t", step.toDouble(), 0.0, 23.0) { step = it.toInt() } }
-        item { Slider9("Denoising steps", denoiseSteps.toDouble(), 3.0, 10.0) { denoiseSteps = it.toInt() } }
+        item { Slider9("Timeline frames", denoiseSteps.toDouble(), 3.0, 10.0) { denoiseSteps = it.toInt() } }
         item { DiffusionTimeline(state.reverseTimeline) }
         item { NoiseSchedule(state.step, state.totalSteps) }
         item { Info9("Pixel noise inspector", "x_t = sqrt(alphaBar) * x0 + sqrt(1-alphaBar) * eps. Pixel [${state.pixel.row}, ${state.pixel.col}]: x0 %.2f, eps %.2f, alphaBar %.2f, noisy %.2f. Noise-prediction loss %.4f.".format(state.pixel.original, state.pixel.noise, state.pixel.alphaBar, state.pixel.noisy, state.loss)) }
@@ -261,10 +250,10 @@ private fun DiffusionSection() {
 private fun CompareSection(onComplete: () -> Unit) {
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { SectionTitle("Autoencoder vs VAE vs GAN vs Diffusion", "No best-model ranking; each has a different mechanism") }
-        item { CompareRow("Autoencoder", "Input -> compressed representation -> reconstruction", "Reconstruction MSE", "Latent drag, bottleneck, denoising") }
+        item { CompareRow("Autoencoder", "Input -> compressed representation -> reconstruction", "Reconstruction MSE", "Bottleneck and noisy-input reconstruction") }
         item { CompareRow("VAE", "Distribution -> sample z -> decode", "Reconstruction + beta * KL", "Gaussian ellipse and prior sampling") }
         item { CompareRow("GAN", "Generator competes with Discriminator", "Binary adversarial losses", "Real/fake points and decision field") }
-        item { CompareRow("Diffusion", "Learn to reverse known noise", "Noise-prediction MSE", "Forward noising and reverse timeline") }
+        item { CompareRow("Diffusion", "Estimate and remove noise", "Noise-prediction MSE", "Forward equation and staged subtraction") }
         item { GradientButton("Mark lesson complete", Modifier.fillMaxWidth(), onComplete) }
     }
 }
@@ -281,7 +270,7 @@ private fun BreakItSection() {
         item { GanPlot(collapsed) }
         item { Info9("Mode collapse", "Generated points gather near one region while real data covers the ring.") }
         item { DiffusionTimeline(few.reverseTimeline) }
-        item { Info9("Too few denoising steps", "The reverse timeline jumps quickly from heavy noise to structure, so the intermediate states preserve more artifacts.") }
+        item { Info9("Coarse timeline", "Three frames skip intermediate views of the same predicted-noise subtraction; the final estimate is unchanged.") }
     }
 }
 
@@ -427,7 +416,9 @@ private fun CompareRow(name: String, mechanism: String, objective: String, visua
 @Composable
 private fun Slider9(label: String, value: Double, min: Double, max: Double, onChange: (Double) -> Unit) {
     Column {
-        Text("$label: %.2f".format(value), color = LabText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        val shown = if (min % 1.0 == 0.0 && max % 1.0 == 0.0 && value % 1.0 == 0.0)
+            value.toInt().toString() else "%.2f".format(value)
+        Text("$label: $shown", color = LabText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         Slider(value.toFloat(), { onChange(it.toDouble().coerceIn(min, max)) }, valueRange = min.toFloat()..max.toFloat())
     }
 }

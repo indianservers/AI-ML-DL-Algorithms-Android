@@ -74,8 +74,12 @@ fun PhaseSixCnnLab(
                 }
                 Text(if (completed) "Completed" else depth.title, color = if (completed) LabGreen else LabMuted, fontSize = 11.sp)
             }
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                CnnSection.entries.forEach { SegmentedOption(it.label, section == it) { section = it } }
+            CnnSection.entries.chunked(3).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    row.forEach { option ->
+                        SegmentedOption(option.label, section == option, Modifier.weight(1f)) { section = option }
+                    }
+                }
             }
         }
         when (section) {
@@ -277,7 +281,10 @@ private fun PixelMatrixVisualizer(matrix: List<List<Double>>, title: String, hig
                     }
                 }
             }
-            Text(matrix.joinToString("  ") { row -> row.joinToString(" ") { "%.1f".format(it) } }, color = LabMuted, fontSize = 10.sp, maxLines = 3)
+            val values = matrix.flatten()
+            Text("${matrix.size}×${matrix.firstOrNull()?.size ?: 0} values  •  min %.1f  •  max %.1f".format(
+                values.minOrNull() ?: 0.0, values.maxOrNull() ?: 0.0
+            ), color = LabMuted, fontSize = 11.sp, maxLines = 2)
         }
     }
 }

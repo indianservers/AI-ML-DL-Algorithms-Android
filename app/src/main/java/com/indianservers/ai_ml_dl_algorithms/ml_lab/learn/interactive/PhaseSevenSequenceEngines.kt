@@ -51,6 +51,14 @@ object PhaseSevenTopicMatcher {
 }
 
 object PhaseSevenEngines {
+    /** Illustrates teacher forcing with a fixed example target; this is not a trained translator. */
+    fun teacherForcedDecoder(context: Double, targetEmbeddings: List<Double>): List<Double> {
+        var hidden = context
+        return targetEmbeddings.map { previousToken ->
+            hidden = tanh(.65 * hidden + .35 * previousToken + .25 * context)
+            hidden
+        }
+    }
     fun sequence(preset: SequencePreset, length: Int = 6): List<Double> = when (preset) {
         SequencePreset.Increasing -> List(length) { (it + 1) / length.toDouble() }
         SequencePreset.Alternating -> List(length) { if (it % 2 == 0) 1.0 else 0.0 }

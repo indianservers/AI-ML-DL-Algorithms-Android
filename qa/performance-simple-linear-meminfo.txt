@@ -1,0 +1,68 @@
+Applications Memory Usage (in Kilobytes):
+Uptime: 6363235 Realtime: 6363236
+
+** MEMINFO in pid 24021 [com.indianservers.ai_ml_dl_algorithms] **
+                   Pss  Private  Private     Swap      Rss     Heap     Heap     Heap
+                 Total    Dirty    Clean    Dirty    Total     Size    Alloc     Free
+                ------   ------   ------   ------   ------   ------   ------   ------
+  Native Heap    24345    24192        0        0    28348    40224    30967     5251
+  Dalvik Heap    19991    19752        0        0    25672    12495     6248     6247
+ Dalvik Other    13364     5772        0        0    21388
+        Stack     2064     2064        0        0     2072
+    Other dev       17        0       16        0      172
+     .so mmap     6197      740     1804        0    54628
+    .jar mmap     3545        0      180        0    46248
+    .apk mmap    87966      680    66552        0   113172
+    .dex mmap       45        0        0        0      992
+    .oat mmap       76        0        0        0     1888
+    .art mmap     8501     7912        0        0    22704
+   Other mmap     5928       16      420        0    12896
+        Memfd      312      164        0        0      480
+      Unknown     7645     7616        0        0     9060
+        TOTAL   179996    68908    68972        0   339720    52719    37215    11498
+
+ App Summary
+                       Pss(KB)                        Rss(KB)
+                        ------                         ------
+           Java Heap:    27664                          48376
+         Native Heap:    24192                          28348
+                Code:    70108                         232232
+               Stack:     2064                           2072
+            Graphics:        0                              0
+       Private Other:    13852
+              System:    42116
+             Unknown:                                   28692
+
+           TOTAL PSS:   179996            TOTAL RSS:   339720      TOTAL SWAP (KB):        0
+
+ Objects
+               Views:       10         ViewRootImpl:        1
+         AppContexts:        6           Activities:        1
+              Assets:       22        AssetManagers:        0
+       Local Binders:       42        Proxy Binders:       67
+       Parcel memory:       13         Parcel count:       54
+    Death Recipients:        3             WebViews:        0
+
+ Native Allocations
+                         Count                       Total(kB)
+                        ------                         ------
+    Other (malloced):      457                             42
+ Other (nonmalloced):      133                             90
+
+ Shared Bitmaps
+                         Count                       Size(KB)
+                        ------                         ------
+              Mapped:        0                              0
+  (Enable debug.hwui.bitmap_ashmem_long_name sysprop to count unique bitmap allocations)
+
+ SQL
+         MEMORY_USED:      179
+  PAGECACHE_OVERFLOW:      114          MALLOC_SIZE:       46
+
+ DATABASES
+      pgsz     dbsz   Lookaside(b) cache hits cache misses cache size  Dbname
+PER CONNECTION STATS
+         4     6820             98    17    22     6  /data/user/0/com.indianservers.ai_ml_dl_algorithms/databases/algorithm_lessons.db
+POOL STATS
+     cache hits  cache misses    cache size  Dbname
+             17            23             6  /data/user/0/com.indianservers.ai_ml_dl_algorithms/databases/algorithm_lessons.db

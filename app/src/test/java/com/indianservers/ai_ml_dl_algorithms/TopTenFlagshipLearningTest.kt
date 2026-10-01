@@ -50,7 +50,7 @@ class TopTenFlagshipLearningTest {
         assertEquals(PhaseTwoAlgorithmKind.LinearSvm, PhaseTwoTopicMatcher.kindFor("Support Vector Machine", "Classification", "Supervised Learning"))
         assertEquals(PhaseThreeAlgorithmKind.KMeans, PhaseThreeTopicMatcher.kindFor("K-Means", "Clustering", "Unsupervised Learning"))
         assertEquals(PhaseFiveConcept.Mlp, PhaseFiveTopicMatcher.kindFor("Multi-Layer Perceptron", "Deep Learning"))
-        assertEquals(PhaseSixCnnConcept.Architecture, PhaseSixTopicMatcher.kindFor("CNN", "Deep Learning"))
+        assertEquals(PhaseSixCnnConcept.Convolution, PhaseSixTopicMatcher.kindFor("CNN", "Deep Learning"))
         assertEquals(PhaseSevenConcept.Lstm, PhaseSevenTopicMatcher.kindFor("LSTM", "Deep Learning"))
     }
 

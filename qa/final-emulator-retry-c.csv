@@ -1,0 +1,2 @@
+topic_id,name,category,subcategory,opened,rendered,scrolled,reopened,controls_seen,controls_attempted,control_labels,slider_count,canvas_drag,canvas_tap_attempted,canvas_tap_changed,crash,seconds,error
+optimization-algorithms-optimizers-mini-batch-gradient-descent,Mini-Batch Gradient Descent,Optimization Algorithms,Optimizers,True,True,True,False,4,4,Reset; Previous; Next; Auto,0,False,False,False,False,43.52,

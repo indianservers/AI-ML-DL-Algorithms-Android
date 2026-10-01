@@ -63,7 +63,7 @@ data class CnnTrainingState(val epoch: Int, val losses: List<Double>, val accura
 
 object PhaseSixTopicMatcher {
     fun kindFor(title: String, domain: String): PhaseSixCnnConcept? = if (domain != "Deep Learning") null else when {
-        title == "CNN" || title == "Convolutional Neural Networks" -> PhaseSixCnnConcept.Architecture
+        title == "CNN" || title == "Convolutional Neural Networks" -> PhaseSixCnnConcept.Convolution
         title == "Convolution" || title == "Convolutional Layer" -> PhaseSixCnnConcept.Convolution
         title == "Activation Functions" -> null
         else -> null

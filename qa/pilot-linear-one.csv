@@ -1,0 +1,2 @@
+topic_id,name,category,subcategory,opened,rendered,scrolled,reopened,controls_seen,controls_attempted,control_labels,slider_count,canvas_drag,crash,seconds,error
+supervised-learning-regression-simple-linear-regression,Simple Linear Regression,Supervised Learning,Regression,True,True,True,True,4,4,Linear + noise; Non-linear curve; Outliers; Perfect linear,0,True,False,51.09,

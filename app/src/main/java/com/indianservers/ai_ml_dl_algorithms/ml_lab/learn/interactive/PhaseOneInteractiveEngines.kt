@@ -105,6 +105,12 @@ data class TreeSplit(
     val explanation: String
 )
 
+object SupervisedFitDefaults {
+    const val POLYNOMIAL_DEGREE = 3
+    const val REGULARIZATION_ALPHA = .2
+    const val ELASTIC_L1_RATIO = .5
+}
+
 object PhaseOneTopicMatcher {
     fun kindFor(title: String, section: String): PhaseOneAlgorithmKind? = when {
         title == "Simple Linear Regression" -> PhaseOneAlgorithmKind.SimpleLinearRegression

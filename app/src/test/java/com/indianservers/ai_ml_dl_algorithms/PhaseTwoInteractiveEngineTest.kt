@@ -28,6 +28,12 @@ class PhaseTwoInteractiveEngineTest {
         assertNotEquals(spammy.prediction, work.prediction)
         val bernoulli = PhaseTwoEngines.bernoulliNaiveBayes(mapOf("offer" to true, "money" to true, "meeting" to false, "project" to false, "free" to true, "report" to false))
         assertEquals(spammy.prediction, bernoulli.prediction)
+        for (label in 0..1) {
+            val contributions = PhaseTwoEngines.textVocabulary.sumOf { word ->
+                PhaseTwoEngines.bernoulliFeatureLogLikelihood(word, label, bernoulli.counts.getValue(word) > 0)
+            }
+            assertEquals(kotlin.math.ln(.5) + contributions, bernoulli.classScores.getValue(label), 1e-9)
+        }
     }
 
     @Test

@@ -72,8 +72,12 @@ fun PhaseEightTransformerLab(
                 }
                 Text(if (completed) "Completed" else depth.title, color = if (completed) LabGreen else LabMuted, fontSize = 11.sp)
             }
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                TransformerSection.entries.forEach { SegmentedOption(it.label, section == it) { section = it } }
+            TransformerSection.entries.chunked(4).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    row.forEach { option ->
+                        SegmentedOption(option.label, section == option, Modifier.weight(1f)) { section = option }
+                    }
+                }
             }
         }
         when (section) {

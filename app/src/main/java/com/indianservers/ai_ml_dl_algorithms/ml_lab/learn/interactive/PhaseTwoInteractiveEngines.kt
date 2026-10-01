@@ -229,6 +229,15 @@ object PhaseTwoDatasets {
 
 object PhaseTwoEngines {
     val textVocabulary = listOf("offer", "money", "meeting", "project", "free", "report")
+    private val multinomialClassWordCounts = mapOf(
+        0 to mapOf("offer" to 8, "money" to 7, "free" to 9, "meeting" to 1, "project" to 1, "report" to 2),
+        1 to mapOf("offer" to 1, "money" to 1, "free" to 1, "meeting" to 8, "project" to 7, "report" to 8)
+    )
+    fun multinomialTokenLogLikelihood(word: String, label: Int): Double {
+        val frequencies = multinomialClassWordCounts.getValue(label)
+        val total = frequencies.values.sum() + textVocabulary.size
+        return ln((frequencies.getValue(word) + 1.0) / total)
+    }
 
     fun classSummaries(points: List<LabPoint>): List<ClassSummary> = points.groupBy { it.label }.toSortedMap().map { (label, group) ->
         val meanX = group.map { it.x }.average()
@@ -252,29 +261,28 @@ object PhaseTwoEngines {
     }
 
     fun multinomialNaiveBayes(counts: Map<String, Int>): TextNaiveBayesState {
-        val classWordCounts = mapOf(
-            0 to mapOf("offer" to 8, "money" to 7, "free" to 9, "meeting" to 1, "project" to 1, "report" to 2),
-            1 to mapOf("offer" to 1, "money" to 1, "free" to 1, "meeting" to 8, "project" to 7, "report" to 8)
-        )
-        val scores = classWordCounts.mapValues { (_, freqs) ->
-            val total = freqs.values.sum() + textVocabulary.size
+        val scores = multinomialClassWordCounts.mapValues { (label, _) ->
             ln(0.5) + textVocabulary.sumOf { word ->
-                val probability = (freqs.getValue(word) + 1.0) / total
-                counts.getOrDefault(word, 0) * ln(probability)
+                counts.getOrDefault(word, 0) * multinomialTokenLogLikelihood(word, label)
             }
         }
         return TextNaiveBayesState(textVocabulary, counts, scores, scores.maxBy { it.value }.key)
     }
 
+    private val bernoulliFeatureProbabilities = mapOf(
+        0 to mapOf("offer" to .82, "money" to .78, "free" to .85, "meeting" to .12, "project" to .18, "report" to .2),
+        1 to mapOf("offer" to .14, "money" to .16, "free" to .2, "meeting" to .82, "project" to .76, "report" to .8)
+    )
+
+    fun bernoulliFeatureLogLikelihood(word: String, label: Int, present: Boolean): Double {
+        val probability = bernoulliFeatureProbabilities.getValue(label).getValue(word)
+        return if (present) ln(probability) else ln(1.0 - probability)
+    }
+
     fun bernoulliNaiveBayes(present: Map<String, Boolean>): TextNaiveBayesState {
-        val pFeatureGivenClass = mapOf(
-            0 to mapOf("offer" to .82, "money" to .78, "free" to .85, "meeting" to .12, "project" to .18, "report" to .2),
-            1 to mapOf("offer" to .14, "money" to .16, "free" to .2, "meeting" to .82, "project" to .76, "report" to .8)
-        )
-        val scores = pFeatureGivenClass.mapValues { (_, probs) ->
+        val scores = bernoulliFeatureProbabilities.mapValues { (label, _) ->
             ln(0.5) + textVocabulary.sumOf { word ->
-                val p = probs.getValue(word)
-                if (present[word] == true) ln(p) else ln(1.0 - p)
+                bernoulliFeatureLogLikelihood(word, label, present[word] == true)
             }
         }
         return TextNaiveBayesState(textVocabulary, present.mapValues { if (it.value) 1 else 0 }, scores, scores.maxBy { it.value }.key)

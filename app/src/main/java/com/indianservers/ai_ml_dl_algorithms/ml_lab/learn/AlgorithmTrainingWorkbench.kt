@@ -49,8 +49,13 @@ internal fun fitLogistic(points: List<LabPoint>): LogisticModel {
 
 internal class TrainingWorkspaceState(topic: LearnTopic) {
     private val kind = PhaseOneTopicMatcher.kindFor(topic.title, topic.section)
+    private val defaultPreset = when (kind) {
+        PhaseOneAlgorithmKind.Knn, PhaseOneAlgorithmKind.LogisticRegression -> DatasetPreset.TwoClusters
+        PhaseOneAlgorithmKind.PolynomialRegression -> DatasetPreset.Polynomial
+        else -> DatasetPreset.LinearNoise
+    }
     val points = mutableStateListOf<LabPoint>().apply {
-        addAll(PhaseOneDatasets.generate(if (kind == PhaseOneAlgorithmKind.Knn || kind == PhaseOneAlgorithmKind.LogisticRegression) DatasetPreset.TwoClusters else DatasetPreset.LinearNoise, 24))
+        addAll(PhaseOneDatasets.generate(defaultPreset, 24))
     }
     var fitted by mutableStateOf<RegressionFit?>(null)
     var fittedKnn by mutableStateOf<List<LabPoint>?>(null)
@@ -58,8 +63,22 @@ internal class TrainingWorkspaceState(topic: LearnTopic) {
     fun invalidate() { fitted = null; fittedKnn = null; fittedLogistic = null }
 }
 
+internal fun hasLiveTrainer(topic: LearnTopic): Boolean = PhaseOneTopicMatcher.kindFor(topic.title, topic.section) in setOf(
+    PhaseOneAlgorithmKind.SimpleLinearRegression,
+    PhaseOneAlgorithmKind.PolynomialRegression,
+    PhaseOneAlgorithmKind.RidgeRegression,
+    PhaseOneAlgorithmKind.LassoRegression,
+    PhaseOneAlgorithmKind.ElasticNetRegression,
+    PhaseOneAlgorithmKind.LogisticRegression,
+    PhaseOneAlgorithmKind.Knn
+)
+
 @Composable
-internal fun AlgorithmTrainingWorkbench(topic: LearnTopic, workspace: TrainingWorkspaceState) {
+internal fun AlgorithmTrainingWorkbench(
+    topic: LearnTopic,
+    workspace: TrainingWorkspaceState,
+    onOpenVisualization: () -> Unit
+) {
     val context = LocalContext.current
     val kind = remember(topic) { PhaseOneTopicMatcher.kindFor(topic.title, topic.section) }
     val regression = kind in setOf(
@@ -69,7 +88,31 @@ internal fun AlgorithmTrainingWorkbench(topic: LearnTopic, workspace: TrainingWo
     )
     val knn = kind == PhaseOneAlgorithmKind.Knn
     val logistic = kind == PhaseOneAlgorithmKind.LogisticRegression
-    val preset = if (knn || logistic) DatasetPreset.TwoClusters else DatasetPreset.LinearNoise
+    if (!hasLiveTrainer(topic)) {
+        val concept = topic.domain == "Reinforcement Learning" && topic.section == "Fundamentals"
+        LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item { SectionTitle("Train & Inference", topic.title) }
+            item {
+                GlassPanel(Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(if (concept) "Concept simulation" else "Training engine not connected",
+                            color = LabText, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        Text(if (concept)
+                            "${topic.title} is a reinforcement-learning concept. Explore its state and interactions in Visualization; there is no standalone model to fit or export here."
+                            else "${topic.title} has an interactive visualization, but this app does not currently fit or export a model for it. Explore its computed mechanism and scenario controls in Visualization.",
+                            color = LabMuted, fontSize = 13.sp)
+                        GradientButton("Open Visualization", Modifier.fillMaxWidth(), onOpenVisualization)
+                    }
+                }
+            }
+        }
+        return
+    }
+    val preset = when {
+        knn || logistic -> DatasetPreset.TwoClusters
+        kind == PhaseOneAlgorithmKind.PolynomialRegression -> DatasetPreset.Polynomial
+        else -> DatasetPreset.LinearNoise
+    }
     val points = workspace.points
     var xText by remember { mutableStateOf("0.0") }
     var yText by remember { mutableStateOf("0.0") }
@@ -165,10 +208,10 @@ internal fun AlgorithmTrainingWorkbench(topic: LearnTopic, workspace: TrainingWo
                             runCatching {
                                 fitted = when (kind) {
                                     PhaseOneAlgorithmKind.SimpleLinearRegression -> PhaseOneEngines.fitSimpleLinear(points)
-                                    PhaseOneAlgorithmKind.PolynomialRegression -> PhaseOneEngines.fitPolynomial(points, 3)
-                                    PhaseOneAlgorithmKind.RidgeRegression -> PhaseOneEngines.fitRidge(points, .25)
-                                    PhaseOneAlgorithmKind.LassoRegression -> PhaseOneEngines.fitLasso(points, .25)
-                                    PhaseOneAlgorithmKind.ElasticNetRegression -> PhaseOneEngines.fitElasticNet(points, .25, .5)
+                                    PhaseOneAlgorithmKind.PolynomialRegression -> PhaseOneEngines.fitPolynomial(points, SupervisedFitDefaults.POLYNOMIAL_DEGREE)
+                                    PhaseOneAlgorithmKind.RidgeRegression -> PhaseOneEngines.fitRidge(points, SupervisedFitDefaults.REGULARIZATION_ALPHA)
+                                    PhaseOneAlgorithmKind.LassoRegression -> PhaseOneEngines.fitLasso(points, SupervisedFitDefaults.REGULARIZATION_ALPHA)
+                                    PhaseOneAlgorithmKind.ElasticNetRegression -> PhaseOneEngines.fitElasticNet(points, SupervisedFitDefaults.REGULARIZATION_ALPHA, SupervisedFitDefaults.ELASTIC_L1_RATIO)
                                     else -> null
                                 }
                                 fittedKnn = if (knn) points.toList() else null
@@ -193,8 +236,6 @@ internal fun AlgorithmTrainingWorkbench(topic: LearnTopic, workspace: TrainingWo
                         if (fitted != null || fittedKnn != null || fittedLogistic != null) SegmentedOption("Export trained model (.json)", false, Modifier.fillMaxWidth()) {
                             exportModel.launch("${topic.id}-model.json")
                         }
-                    } else {
-                        Text("A trainable engine is not connected to this topic yet. Its lesson and visualization remain available. Export appears when a real model can be fitted.", color = LabMuted, fontSize = 13.sp)
                     }
                     Text(message, color = LabCyan, fontSize = 12.sp)
                 }

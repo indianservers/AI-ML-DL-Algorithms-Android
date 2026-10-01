@@ -153,7 +153,7 @@ private fun GradientSection() {
         item {
             GlassPanel(Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SliderSeq("Recurrent weight Wh", wh, .1, 1.4) { wh = it }
+                    SliderSeq("Teaching override: recurrent weight Wh", wh, .1, 1.4) { wh = it }
                     SegmentedOption(if (clip) "Gradient clipping on" else "Gradient clipping off", clip, Modifier.fillMaxWidth()) { clip = !clip }
                 }
             }
@@ -176,14 +176,14 @@ private fun LstmSection() {
     val step = PhaseSevenEngines.lstmStep(.6, .2, .8, forget, inputGate, outputGate)
     val sequence = PhaseSevenEngines.lstmForward(PhaseSevenEngines.sequence(SequencePreset.Delayed, 8))
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { SectionTitle("LSTM Gates", "Gates modify a persistent cell-state memory highway") }
+        item { SectionTitle("LSTM Gates", "Override gate activations to see how they affect one cell-state update") }
         item { LstmGateCanvas(step) }
         item {
             GlassPanel(Modifier.fillMaxWidth()) {
                 Column {
-                    SliderSeq("Forget gate", forget, 0.0, 1.0) { forget = it }
-                    SliderSeq("Input gate", inputGate, 0.0, 1.0) { inputGate = it }
-                    SliderSeq("Output gate", outputGate, 0.0, 1.0) { outputGate = it }
+                    SliderSeq("Override forget gate", forget, 0.0, 1.0) { forget = it }
+                    SliderSeq("Override input gate", inputGate, 0.0, 1.0) { inputGate = it }
+                    SliderSeq("Override output gate", outputGate, 0.0, 1.0) { outputGate = it }
                 }
             }
         }
@@ -198,13 +198,13 @@ private fun GruSection() {
     var update by remember { mutableDoubleStateOf(.8) }
     val step = PhaseSevenEngines.gruStep(.6, .7, reset, update)
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { SectionTitle("GRU", "A simpler gated recurrent unit with update and reset gates") }
+        item { SectionTitle("GRU", "Override two gate activations to inspect one illustrative update") }
         item { GruCanvas(step) }
         item {
             GlassPanel(Modifier.fillMaxWidth()) {
                 Column {
-                    SliderSeq("Reset gate", reset, 0.0, 1.0) { reset = it }
-                    SliderSeq("Update gate", update, 0.0, 1.0) { update = it }
+                    SliderSeq("Override reset gate", reset, 0.0, 1.0) { reset = it }
+                    SliderSeq("Override update gate", update, 0.0, 1.0) { update = it }
                 }
             }
         }

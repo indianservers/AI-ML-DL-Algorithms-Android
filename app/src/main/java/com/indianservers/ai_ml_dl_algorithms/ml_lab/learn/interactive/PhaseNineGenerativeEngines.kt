@@ -112,27 +112,58 @@ object PhaseNineEngines {
     fun autoencoder(shape: GenShape = GenShape.Circle, latentDims: Int = 2, selectedRow: Int = 3, selectedCol: Int = 3): AutoencoderState {
         val original = shapeImage(shape)
         val noisy = addNoise(original, .22, seed = shape.ordinal + 31)
-        val hidden = encoderHidden(original)
-        val latent = encode(original, latentDims)
-        val decoded = decode(latent)
-        val reconstruction = compressionBlend(original, decoded, latentDims)
-        val denoised = compressionBlend(original, decode(encode(noisy, latentDims)), (latentDims + 2).coerceAtMost(8))
+        val hidden = encode(original, 16)
+        val latent = hidden.take(latentDims.coerceIn(1, 8))
+        val reconstruction = decodeBottleneck(latent)
+        val denoised = decodeBottleneck(encode(noisy, latentDims))
         val row = selectedRow.coerceIn(0, 7)
         val col = selectedCol.coerceIn(0, 7)
         return AutoencoderState(shape, latentDims, original, noisy, hidden, latent, reconstruction, denoised, mse(original, reconstruction), row to col, (original[row][col] - reconstruction[row][col]).pow(2))
     }
 
     fun encode(image: List<List<Double>>, latentDims: Int = 2): List<Double> {
-        val flat = image.flatten()
-        val total = flat.sum().coerceAtLeast(1e-9)
-        val cx = image.indices.sumOf { r -> image[r].indices.sumOf { c -> image[r][c] * ((c / 7.0) * 2.0 - 1.0) } } / total
-        val cy = image.indices.sumOf { r -> image[r].indices.sumOf { c -> image[r][c] * ((r / 7.0) * 2.0 - 1.0) } } / total
-        val vertical = image.indices.sumOf { r -> image[r][3] + image[r][4] } / total
-        val horizontal = image[3].sum() + image[4].sum()
-        val diag = image.indices.sumOf { image[it][it] + image[it][7 - it] } / total
-        val density = total / flat.size
-        val raw = listOf(cx, cy, vertical, horizontal / total, diag, density, flat.maxOrNull() ?: 0.0, flat.average())
-        return raw.take(latentDims.coerceIn(1, 8))
+        require(image.size == 8 && image.all { it.size == 8 })
+        val pixels = image.flatten()
+        return bottleneckBasis.take(latentDims.coerceIn(1, 16)).map { basis ->
+            pixels.indices.sumOf { pixels[it] * basis[it] }
+        }
+    }
+
+    fun decodeBottleneck(code: List<Double>): List<List<Double>> = List(8) { row ->
+        List(8) { col ->
+            code.take(16).mapIndexed { index, coefficient ->
+                coefficient * bottleneckBasis[index][row * 8 + col]
+            }.sum().coerceIn(0.0, 1.0)
+        }
+    }
+
+    private val bottleneckFrequencies = (0..7).flatMap { u -> (0..7).map { v -> u to v } }
+        .sortedWith(compareBy<Pair<Int, Int>> { it.first + it.second }.thenBy { it.first })
+
+    private val bottleneckBasis: List<List<Double>> by lazy {
+        val shapeCandidates = GenShape.entries.map { shapeImage(it).flatten() }
+        val frequencyCandidates = bottleneckFrequencies.map { (u, v) ->
+            List(64) { pixel -> cosineBasis(u, v, pixel / 8, pixel % 8) }
+        }
+        val orthogonal = mutableListOf<List<Double>>()
+        (shapeCandidates + frequencyCandidates).forEach { candidate ->
+            if (orthogonal.size == 16) return@forEach
+            val remaining = candidate.toMutableList()
+            orthogonal.forEach { basis ->
+                val projection = remaining.indices.sumOf { remaining[it] * basis[it] }
+                remaining.indices.forEach { remaining[it] -= projection * basis[it] }
+            }
+            val norm = sqrt(remaining.sumOf { it * it })
+            if (norm > 1e-8) orthogonal += remaining.map { it / norm }
+        }
+        check(orthogonal.size == 16)
+        orthogonal
+    }
+
+    private fun cosineBasis(u: Int, v: Int, row: Int, col: Int): Double {
+        val rowScale = if (u == 0) 1.0 / kotlin.math.sqrt(8.0) else .5
+        val colScale = if (v == 0) 1.0 / kotlin.math.sqrt(8.0) else .5
+        return rowScale * colScale * cos(PI * (2 * row + 1) * u / 16.0) * cos(PI * (2 * col + 1) * v / 16.0)
     }
 
     fun encoderHidden(image: List<List<Double>>): List<Double> {
@@ -191,7 +222,9 @@ object PhaseNineEngines {
         }
         val field = List(9) { r -> List(9) { c -> discriminatorConfidence(Point2(c / 4.0 - 1.0, r / 4.0 - 1.0), preset, steps) } }
         val inspected = generated[5]
-        val dLoss = generated.take(12).sumOf { -ln((1.0 - discriminatorConfidence(it.second, preset, steps)).coerceIn(1e-6, .999999)) } / 12.0
+        val realLoss = real.take(12).map { binaryLoss(discriminatorConfidence(it, preset, steps), 1.0) }.average()
+        val fakeLoss = generated.take(12).map { binaryLoss(discriminatorConfidence(it.second, preset, steps), 0.0) }.average()
+        val dLoss = (realLoss + fakeLoss) / 2.0
         val gLoss = generated.take(12).sumOf { -ln(discriminatorConfidence(it.second, preset, steps).coerceIn(1e-6, .999999)) } / 12.0
         return GanState(preset, phase, real, generated, field, dLoss, gLoss, inspected.first, inspected.second, discriminatorConfidence(inspected.second, preset, steps), timeline.take(10))
     }
@@ -205,9 +238,9 @@ object PhaseNineEngines {
         val alpha = alphaBar(safeStep, totalSteps)
         val noise = List(8) { r -> List(8) { c -> gaussian(seed + r * 13 + c, safeStep) } }
         val noisy = List(8) { r -> List(8) { c -> sqrt(alpha) * clean[r][c] + sqrt(1.0 - alpha) * noise[r][c] } }
-        val predictedNoise = List(8) { r -> List(8) { c -> noise[r][c] * .82 + deterministic(seed, r, c) * .08 } }
+        val predictedNoise = predictNoiseFromNoisy(noisy, alpha)
         val denoised = denoise(noisy, predictedNoise, alpha)
-        val timeline = reverseTimeline(noisy, clean, denoiseSteps)
+        val timeline = reverseTimeline(noisy, predictedNoise, alpha, denoiseSteps)
         val row = selectedRow.coerceIn(0, 7)
         val col = selectedCol.coerceIn(0, 7)
         val loss = mse(noise, predictedNoise)
@@ -226,13 +259,17 @@ object PhaseNineEngines {
             }
         }
 
+    fun predictNoiseFromNoisy(noisy: List<List<Double>>, alphaBar: Double): List<List<Double>> {
+        if (alphaBar >= 1.0) return List(8) { List(8) { 0.0 } }
+        val scaled = noisy.map { row -> row.map { it / sqrt(alphaBar) } }
+        val estimatedClean = decodeBottleneck(encode(scaled, 8))
+        return List(8) { row -> List(8) { col ->
+            (noisy[row][col] - sqrt(alphaBar) * estimatedClean[row][col]) / sqrt(1.0 - alphaBar)
+        } }
+    }
+
     fun mse(a: List<List<Double>>, b: List<List<Double>>): Double =
         a.indices.sumOf { r -> a[r].indices.sumOf { c -> (a[r][c] - b[r][c]).pow(2) } } / (a.size * a.first().size)
-
-    private fun compressionBlend(original: List<List<Double>>, decoded: List<List<Double>>, latentDims: Int): List<List<Double>> {
-        val keep = when (latentDims.coerceIn(1, 8)) { 1 -> .18; 2 -> .42; 4 -> .66; else -> .86 }
-        return original.indices.map { r -> original[r].indices.map { c -> (original[r][c] * keep + decoded[r][c] * (1.0 - keep)).coerceIn(0.0, 1.0) } }
-    }
 
     private fun addNoise(image: List<List<Double>>, amount: Double, seed: Int): List<List<Double>> =
         image.indices.map { r -> image[r].indices.map { c -> (image[r][c] + deterministic(seed, r, c) * amount).coerceIn(0.0, 1.0) } }
@@ -257,7 +294,7 @@ object PhaseNineEngines {
         }
     }
 
-    private fun discriminatorConfidence(point: Point2, preset: GanPreset, steps: Int): Double {
+    fun discriminatorConfidence(point: Point2, preset: GanPreset, steps: Int): Double {
         val radius = sqrt(point.x * point.x + point.y * point.y)
         val ringScore = 1.0 - kotlin.math.abs(radius - .72) * 3.0
         val strength = when (preset) {
@@ -268,10 +305,15 @@ object PhaseNineEngines {
         return sigmoid(ringScore * strength)
     }
 
-    private fun reverseTimeline(start: List<List<Double>>, clean: List<List<Double>>, steps: Int): List<List<List<Double>>> =
+    private fun reverseTimeline(start: List<List<Double>>, predictedNoise: List<List<Double>>,
+                                alphaBar: Double, steps: Int): List<List<List<Double>>> =
         List(steps.coerceIn(3, 10)) { i ->
             val t = i / (steps.coerceIn(3, 10) - 1).toDouble()
-            start.indices.map { r -> start[r].indices.map { c -> (start[r][c] * (1.0 - t) + clean[r][c] * t).coerceIn(0.0, 1.0) } }
+            val normalization = (1.0 - t) + t * sqrt(alphaBar)
+            start.indices.map { r -> start[r].indices.map { c ->
+                ((start[r][c] - t * sqrt(1.0 - alphaBar) * predictedNoise[r][c]) / normalization)
+                    .coerceIn(0.0, 1.0)
+            } }
         }
 
     private fun distance2(a: Point2, b: Point2): Double = (a.x - b.x).pow(2) + (a.y - b.y).pow(2)

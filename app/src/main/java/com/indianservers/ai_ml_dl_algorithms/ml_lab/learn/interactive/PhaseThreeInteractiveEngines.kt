@@ -80,7 +80,8 @@ data class DbscanState(
 
 data class MergeStep(val left: Set<Int>, val right: Set<Int>, val height: Double, val merged: Set<Int>)
 data class DendrogramState(val merges: List<MergeStep>, val cutHeight: Double, val clusterCount: Int)
-data class GmmComponent(val mean: ClusterPoint, val varianceX: Double, val varianceY: Double, val weight: Double)
+data class GmmComponent(val mean: ClusterPoint, val varianceX: Double, val varianceY: Double,
+    val weight: Double, val covarianceXY: Double = 0.0)
 data class GmmState(val components: List<GmmComponent>, val responsibilities: List<List<Double>>, val logLikelihood: Double)
 data class PcaState(val mean: ClusterPoint, val pc1: ClusterPoint, val pc2: ClusterPoint, val variance1: Double, val variance2: Double, val projected: List<Double>, val reconstructionError: Double)
 data class MatrixState(val rows: List<String>, val columns: List<String>, val values: List<List<Double>>)
@@ -257,11 +258,21 @@ object PhaseThreeEngines {
     }
 
     fun gmm(points: List<ClusterPoint>, k: Int, iterations: Int = 5): GmmState {
+        fun density(point: ClusterPoint, component: GmmComponent): Double {
+            val vx = component.varianceX
+            val vy = component.varianceY
+            val cov = component.covarianceXY
+            val det = (vx * vy - cov * cov).coerceAtLeast(1e-8)
+            val dx = point.x - component.mean.x
+            val dy = point.y - component.mean.y
+            val quadratic = (vy * dx * dx - 2 * cov * dx * dy + vx * dy * dy) / det
+            return exp(-quadratic / 2) / (2 * PI * sqrt(det))
+        }
         var components = kMeans(points, k, 3, plusPlus = true).centers.map { GmmComponent(it, .08, .08, 1.0 / k) }
         var responsibilities = List(points.size) { List(k) { 1.0 / k } }
         repeat(iterations) {
             responsibilities = points.map { point ->
-                val raw = components.map { c -> c.weight * gaussian(point.x, c.mean.x, sqrt(c.varianceX)) * gaussian(point.y, c.mean.y, sqrt(c.varianceY)) }
+                val raw = components.map { c -> c.weight * density(point, c) }
                 val total = raw.sum().coerceAtLeast(1e-12)
                 raw.map { it / total }
             }
@@ -271,10 +282,24 @@ object PhaseThreeEngines {
                 val my = points.indices.sumOf { responsibilities[it][c] * points[it].y } / weightSum
                 val vx = points.indices.sumOf { responsibilities[it][c] * (points[it].x - mx).pow(2) } / weightSum
                 val vy = points.indices.sumOf { responsibilities[it][c] * (points[it].y - my).pow(2) } / weightSum
-                GmmComponent(ClusterPoint(mx, my, c), vx.coerceAtLeast(.002), vy.coerceAtLeast(.002), weightSum / points.size)
+                val xy = points.indices.sumOf { responsibilities[it][c] *
+                    (points[it].x - mx) * (points[it].y - my) } / weightSum
+                val regularizedX = vx.coerceAtLeast(.002)
+                val regularizedY = vy.coerceAtLeast(.002)
+                val boundedXY = xy.coerceIn(-sqrt(regularizedX * regularizedY) * .95,
+                    sqrt(regularizedX * regularizedY) * .95)
+                GmmComponent(ClusterPoint(mx, my, c), regularizedX, regularizedY,
+                    weightSum / points.size, boundedXY)
             }
         }
-        val ll = points.sumOf { point -> ln(components.sumOf { it.weight * gaussian(point.x, it.mean.x, sqrt(it.varianceX)) * gaussian(point.y, it.mean.y, sqrt(it.varianceY)) }.coerceAtLeast(1e-12)) }
+        responsibilities = points.map { point ->
+            val raw = components.map { c -> c.weight * density(point, c) }
+            val total = raw.sum().coerceAtLeast(1e-12)
+            raw.map { it / total }
+        }
+        val ll = points.sumOf { point ->
+            ln(components.sumOf { it.weight * density(point, it) }.coerceAtLeast(1e-12))
+        }
         return GmmState(components, responsibilities, ll)
     }
 

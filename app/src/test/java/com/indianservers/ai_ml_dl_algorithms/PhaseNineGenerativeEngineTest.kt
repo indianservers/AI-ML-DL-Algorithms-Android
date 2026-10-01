@@ -16,6 +16,8 @@ class PhaseNineGenerativeEngineTest {
         assertEquals(16, state.hidden.size)
         assertEquals(2, state.latent.size)
         assertEquals(8, state.reconstruction.size)
+        assertEquals(PhaseNineEngines.decodeBottleneck(state.latent), state.reconstruction)
+        assertEquals(PhaseNineEngines.decodeBottleneck(PhaseNineEngines.encode(state.noisy, 2)), state.denoised)
         assertTrue(state.loss.isFinite())
         assertTrue(state.loss >= 0.0)
     }
@@ -26,6 +28,15 @@ class PhaseNineGenerativeEngineTest {
         val larger = PhaseNineEngines.autoencoder(GenShape.X, latentDims = 8)
         assertTrue(larger.loss < small.loss)
         assertTrue(small.selectedPixelError >= 0.0)
+    }
+
+    @Test
+    fun denoisingProjectionUsesOnlyNoisyPixelsAndReducesNoiseForExampleShapes() {
+        GenShape.entries.forEach { shape ->
+            val state = PhaseNineEngines.autoencoder(shape, latentDims = 8)
+            assertTrue("$shape noisy estimate", PhaseNineEngines.mse(state.original, state.denoised) <=
+                PhaseNineEngines.mse(state.original, state.noisy))
+        }
     }
 
     @Test
@@ -70,6 +81,13 @@ class PhaseNineGenerativeEngineTest {
         assertTrue(state.generatorLoss.isFinite())
         assertTrue(state.timeline.contains(GanPhase.Discriminator))
         assertTrue(state.timeline.contains(GanPhase.Generator))
+        val realTerm = state.real.take(12).map {
+            PhaseNineEngines.binaryLoss(PhaseNineEngines.discriminatorConfidence(it, GanPreset.Balanced, 10), 1.0)
+        }.average()
+        val fakeTerm = state.generated.take(12).map {
+            PhaseNineEngines.binaryLoss(PhaseNineEngines.discriminatorConfidence(it.second, GanPreset.Balanced, 10), 0.0)
+        }.average()
+        assertEquals((realTerm + fakeTerm) / 2.0, state.discriminatorLoss, 1e-12)
     }
 
     @Test
@@ -105,8 +123,10 @@ class PhaseNineGenerativeEngineTest {
     fun diffusionDenoisingUpdateAndGenerationLoopStayFinite() {
         val state = PhaseNineEngines.diffusion(GenShape.Horizontal, step = 20, denoiseSteps = 7)
         val denoised = PhaseNineEngines.denoise(state.noisy, state.predictedNoise, state.pixel.alphaBar)
+        assertEquals(PhaseNineEngines.predictNoiseFromNoisy(state.noisy, state.pixel.alphaBar), state.predictedNoise)
         assertEquals(state.denoised.flatten().first(), denoised.flatten().first(), 1e-12)
         assertEquals(7, state.reverseTimeline.size)
+        assertEquals(state.denoised, state.reverseTimeline.last())
         assertTrue(state.reverseTimeline.flatten().flatten().all { it.isFinite() })
     }
 }

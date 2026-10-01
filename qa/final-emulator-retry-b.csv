@@ -1,0 +1,2 @@
+topic_id,name,category,subcategory,opened,rendered,scrolled,reopened,controls_seen,controls_attempted,control_labels,slider_count,canvas_drag,canvas_tap_attempted,canvas_tap_changed,crash,seconds,error
+deep-learning-transformers-transformer,Transformer,Deep Learning,Transformers,True,True,True,False,16,16,Tokens; Q/K/V; Attention; Heads; Position; Block; Predict; Tokens; Q/K/V; Attention; Heads; Position; Block; Predict; Causal mask on; Mark lesson complete,0,False,False,False,False,61.56,

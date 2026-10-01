@@ -94,6 +94,7 @@ import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseThree
 import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseThreeTopicMatcher
 import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseTwoAlgorithmLab
 import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.PhaseTwoTopicMatcher
+import com.indianservers.ai_ml_dl_algorithms.ml_lab.learn.interactive.SupervisedVisualizationScreen
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
@@ -385,7 +386,30 @@ private fun AlgorithmLearningScreen(
             onComplete = onComplete,
             embedded = true
         )
-        AlgorithmLearningMode.Visualization -> if (searchLabAssetPath(topic.title) != null) {
+        AlgorithmLearningMode.Visualization -> if (AlgorithmVisualizationRegistry.forTopic(topic).supervised != null) {
+            val kind = AlgorithmVisualizationRegistry.forTopic(topic).supervised!!
+            val shared = if (kind in setOf(
+                SupervisedVisualization.SimpleLinear, SupervisedVisualization.Polynomial,
+                SupervisedVisualization.Ridge, SupervisedVisualization.Lasso,
+                SupervisedVisualization.ElasticNet, SupervisedVisualization.Logistic,
+                SupervisedVisualization.ClassificationKnn
+            )) workspace.points else null
+            SupervisedVisualizationScreen(topic, kind, shared)
+        } else if (AlgorithmVisualizationRegistry.forTopic(topic).stageTwo != null) {
+            StageTwoVisualizationScreen(topic, AlgorithmVisualizationRegistry.forTopic(topic).stageTwo!!)
+        } else if (AlgorithmVisualizationRegistry.forTopic(topic).forecast != null) {
+            StageThreeForecastScreen(topic, AlgorithmVisualizationRegistry.forTopic(topic).forecast!!)
+        } else if (AlgorithmVisualizationRegistry.forTopic(topic).language != null) {
+            StageThreeLanguageScreen(topic, AlgorithmVisualizationRegistry.forTopic(topic).language!!)
+        } else if (AlgorithmVisualizationRegistry.forTopic(topic).neuralLanguage != null) {
+            StageThreeNeuralLanguageScreen(topic, AlgorithmVisualizationRegistry.forTopic(topic).neuralLanguage!!)
+        } else if (AlgorithmVisualizationRegistry.forTopic(topic).vision != null) {
+            StageThreeVisionScreen(topic, AlgorithmVisualizationRegistry.forTopic(topic).vision!!)
+        } else if (AlgorithmVisualizationRegistry.forTopic(topic).deep != null) {
+            StageThreeDeepScreen(topic, AlgorithmVisualizationRegistry.forTopic(topic).deep!!)
+        } else if (AlgorithmVisualizationRegistry.forTopic(topic).stageFour) {
+            StageFourVisualizationScreen(topic)
+        } else if (AlgorithmVisualizationRegistry.forTopic(topic).route == VisualizationRoute.ExistingWeb) {
             SearchAlgorithmWebLab(topic, { mode = AlgorithmLearningMode.Learn }, showHeader = false)
         } else AlgorithmLabScreen(
             topic = topic,
@@ -395,7 +419,9 @@ private fun AlgorithmLearningScreen(
             onComplete = onComplete,
             workspace = workspace
         )
-        AlgorithmLearningMode.Train -> AlgorithmTrainingWorkbench(topic, workspace)
+        AlgorithmLearningMode.Train -> AlgorithmTrainingWorkbench(topic, workspace) {
+            mode = AlgorithmLearningMode.Visualization
+        }
         AlgorithmLearningMode.Quiz -> AlgorithmQuizScreen(topic)
             }
         }
@@ -520,28 +546,10 @@ private fun AlgorithmLabScreen(
         )
         return
     }
-    val profile = remember(topic, depth) { LearnCatalog.profile(topic, depth) }
-    var stage by remember(topic) { mutableStateOf(LearningStage.Visualize) }
-
-    Column(Modifier.fillMaxSize()) {
-        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(LearningStage.Visualize, LearningStage.Explore, LearningStage.Predict, LearningStage.Experiment, LearningStage.Compare).forEach { item ->
-                    SegmentedOption(item.label, stage == item) { stage = item }
-                }
-            }
-        }
-        when (stage) {
-            LearningStage.Understand -> UnderstandStage(profile)
-            LearningStage.Visualize -> if (topic.isKnnRegression()) KnnRegressionStage(topic, "Visualize KNN Regression") else InteractiveStage(topic, profile, "Interactive visualization", false)
-            LearningStage.Explore -> if (topic.isKnnRegression()) KnnRegressionStage(topic, "Explore KNN Regression") else ExploreStage(topic, profile)
-            LearningStage.Train -> if (topic.isKnnRegression()) KnnLazyTrainingStage(profile) else TrainStage(profile)
-            LearningStage.Predict -> if (topic.isKnnRegression()) KnnRegressionStage(topic, "Predict with KNN Regression") else PredictStage(topic, profile)
-            LearningStage.Experiment -> InteractiveStage(topic, profile, "Mini-lab", true)
-            LearningStage.Compare -> CompareStage(topic, profile)
-            LearningStage.Test -> QuizStage(topic, completed, onComplete)
-        }
-    }
+    Text(
+        "No native visualization is registered for ${topic.title}.",
+        color = LabOrange, modifier = Modifier.padding(16.dp)
+    )
 }
 
 @Composable

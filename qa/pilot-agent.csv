@@ -1,0 +1,2 @@
+topic_id,name,category,subcategory,opened,rendered,scrolled,reopened,controls_seen,controls_attempted,control_labels,slider_count,canvas_drag,crash,seconds,error
+reinforcement-learning-fundamentals-agent,Agent,Reinforcement Learning,Fundamentals,True,True,True,True,36,36,Reset; Previous; Next; Auto; slider; ↑; →; ↓; ←; Reset; Previous; Next; Pause; slider; ↑; →; ↓; ←; Reset; Previous; Next; Pause; slider; ↑; →; ↓; ←; Reset; Previous; Next; Pause; slider; ↑; →; ↓; ←,4,False,False,82.04,
